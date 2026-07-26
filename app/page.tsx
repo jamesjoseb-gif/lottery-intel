@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { SearchBox } from "@/components/SearchBox";
-import { latestResults } from "@/lib/mock-data";
+import { formatDrawDate, getLatestFourD, getLatestSweep, getLatestToto } from "@/lib/results";
+
+export const revalidate = 60;
 
 const intelligenceItems = [
   ["Appearance history", "See every official draw in which a 4D number appeared."],
@@ -11,7 +13,10 @@ const intelligenceItems = [
 
 const recentSearches = ["1234", "8888", "2026", "0001", "6789"];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const [fourDResult, totoResult, sweepResult] = await Promise.all([getLatestFourD(), getLatestToto(), getLatestSweep()]);
+  const fourD = fourDResult.data ?? []; const toto = totoResult.data ?? []; const sweep = sweepResult.data ?? [];
+  const dataError = fourDResult.error || totoResult.error || sweepResult.error;
   return (
     <>
       <section className="hero">
@@ -38,7 +43,7 @@ export default function HomePage() {
                 <span>Official schedule</span>
                 <strong>Singapore draws</strong>
               </div>
-              <div className="status-pill">Data connection in progress</div>
+              <div className="status-pill">Published results online</div>
             </div>
             <div className="dashboard-grid">
               <div><span>4D</span><strong>Wed, Sat & Sun</strong></div>
@@ -65,23 +70,22 @@ export default function HomePage() {
           <Link href="/live">Open Live Draw Centre →</Link>
         </div>
         <div className="result-grid">
+          {dataError && <p className="state state-error results-error">Some latest results could not be loaded. Please try again later.</p>}
           <article className="result-card featured">
-            <div className="card-top"><span>4D</span><small>{latestResults.fourD.drawDate}</small></div>
-            <div className="prize-row"><span>1st</span><strong>{latestResults.fourD.first}</strong></div>
-            <div className="prize-row"><span>2nd</span><strong>{latestResults.fourD.second}</strong></div>
-            <div className="prize-row"><span>3rd</span><strong>{latestResults.fourD.third}</strong></div>
+            <div className="card-top"><span>4D</span><small>{fourD[0] ? formatDrawDate(fourD[0].draw_date) : "No published result"}</small></div>
+            {(["first", "second", "third"] as const).map((type) => <div className="prize-row" key={type}><span>{type === "first" ? "1st" : type === "second" ? "2nd" : "3rd"}</span><strong>{fourD.find((row) => row.prize_type === type)?.winning_number ?? "—"}</strong></div>)}
             <Link href="/4d">View full 4D results</Link>
           </article>
           <article className="result-card">
-            <div className="card-top"><span>TOTO</span><small>{latestResults.toto.drawDate}</small></div>
-            <div className="number-balls">{latestResults.toto.numbers.map((n, i) => <b key={i}>{n}</b>)}</div>
-            <p>Next advertised prize: <strong>{latestResults.toto.nextPrize}</strong></p>
+            <div className="card-top"><span>TOTO</span><small>{toto[0] ? formatDrawDate(toto[0].draw_date) : "No published result"}</small></div>
+            <div className="number-balls">{toto.filter((row) => row.number_kind === "main").map((row) => <b key={row.position}>{row.winning_number}</b>)}</div>
+            <p>Additional number: <strong>{toto.find((row) => row.number_kind === "additional")?.winning_number ?? "—"}</strong></p>
             <Link href="/toto">View TOTO results</Link>
           </article>
           <article className="result-card">
-            <div className="card-top"><span>Singapore Sweep</span><small>Monthly draw</small></div>
-            <div className="sweep-number">{latestResults.sweep.first}</div>
-            <p>First-prize result</p>
+            <div className="card-top"><span>Singapore Sweep</span><small>{sweep[0] ? formatDrawDate(sweep[0].draw_date) : "No published result"}</small></div>
+            <div className="sweep-number">{sweep[0]?.source_display_value ?? "—"}</div>
+            <p>{sweep[0]?.source_label ?? "No published result"}</p>
             <Link href="/singapore-sweep">View Sweep results</Link>
           </article>
         </div>
