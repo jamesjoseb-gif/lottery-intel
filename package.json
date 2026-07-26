@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "import:4d": "node scripts/import-4d.mjs",
+    "test:importer": "node --test scripts/import-4d.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.6.1",
