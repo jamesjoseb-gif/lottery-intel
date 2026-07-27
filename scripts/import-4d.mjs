@@ -1,13 +1,16 @@
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
-export const ARCHIVE_URL =
+export const ARCHIVE_LIST_URL =
   "https://www.singaporepools.com.sg/DataFileArchive/Lottery/Output/fourd_result_draw_list_en.html";
 
-export const RESULTS_URL =
+export const LEGACY_DETAIL_ROOT =
+  "https://www.singaporepools.com.sg/DataFileArchive/Lottery/Output/";
+
+export const CURRENT_RESULTS_URL =
   "https://www.singaporepools.com.sg/en/product/Pages/4d_results.aspx";
 
-function text(html) {
+function cleanText(html) {
   return html
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
@@ -18,19 +21,83 @@ function text(html) {
     .trim();
 }
 
-function resultUrl(drawNo) {
+function currentResultUrl(drawNo) {
   const sppl = Buffer.from(`DrawNumber=${drawNo}`).toString("base64");
-  return `${RESULTS_URL}?sppl=${sppl}`;
+  return `${CURRENT_RESULTS_URL}?sppl=${sppl}`;
 }
 
-export function discoverDrawUrls(html) {
+function legacyResultUrl(drawNo) {
+  return `${LEGACY_DETAIL_ROOT}fourd_result_draw_${drawNo}.html`;
+}
+
+function drawNoFromUrl(url) {
+  try {
+    const parsed = new URL(url);
+
+    const encoded = parsed.searchParams.get("sppl");
+    if (encoded) {
+      const decoded = Buffer.from(encoded, "base64").toString("utf8");
+      const match = decoded.match(/DrawNumber=(\d{4,})/i);
+      if (match) return match[1];
+    }
+
+    const legacy = parsed.pathname.match(/fourd_result_draw_(\d+)\.html$/i);
+    if (legacy) return legacy[1];
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function visibleDrawNo(source) {
+  return source.match(
+    /\bDraw\s*(?:(?:No\.?|Number)\s*)?[:#-]?\s*(\d{4,})\b/i,
+  )?.[1] ?? null;
+}
+
+export function discoverDrawCandidates(html) {
   const found = new Map();
 
   for (const match of html.matchAll(
-    /(?:href=["']([^"']*(?:fourd_result_draw_(\d+)\.html|4d_results\.aspx\?[^"']*sppl=[^"']+))["']|value=["']?(\d{4,})["']?)/gi,
+    /href=["']([^"']*fourd_result_draw_(\d+)\.html)["']/gi,
   )) {
-    const drawNo = match[2] ?? match[3];
-    if (drawNo) found.set(drawNo, resultUrl(drawNo));
+    const href = new URL(match[1], ARCHIVE_LIST_URL).href;
+    const drawNo = match[2];
+
+    found.set(drawNo, {
+      drawNo,
+      urls: [href, currentResultUrl(drawNo)],
+    });
+  }
+
+  for (const match of html.matchAll(
+    /href=["']([^"']*4d_results\.aspx\?[^"']*sppl=[^"']+)["']/gi,
+  )) {
+    const href = new URL(match[1], ARCHIVE_LIST_URL).href;
+    const drawNo = drawNoFromUrl(href);
+
+    if (!drawNo) continue;
+
+    const existing = found.get(drawNo);
+
+    found.set(drawNo, {
+      drawNo,
+      urls: existing
+        ? [...new Set([href, ...existing.urls])]
+        : [href, legacyResultUrl(drawNo)],
+    });
+  }
+
+  for (const match of html.matchAll(/value=["']?(\d{4,})["']?/gi)) {
+    const drawNo = match[1];
+
+    if (!found.has(drawNo)) {
+      found.set(drawNo, {
+        drawNo,
+        urls: [currentResultUrl(drawNo), legacyResultUrl(drawNo)],
+      });
+    }
   }
 
   return [...found.values()];
@@ -42,21 +109,27 @@ function numbersBetween(source, start, end, expected) {
 
   const tail = source.slice(from).replace(start, "");
   const stop = tail.search(end);
-  const values = (stop < 0 ? tail : tail.slice(0, stop)).match(
-    /(?<!\d)\d{4}(?!\d)/g,
-  ) ?? [];
+  const section = stop < 0 ? tail : tail.slice(0, stop);
+  const values = section.match(/(?<!\d)\d{4}(?!\d)/g) ?? [];
 
   return values.length === expected ? values : null;
 }
 
-function winningNumbers(html, source, drawNo, dateMatch) {
-  const top = numbersBetween(source, /1st\s*Prize/i, /Starter\s*Prizes?/i, 3);
+function extractWinningNumbers(html, source, drawNo, drawDateParts) {
+  const top = numbersBetween(
+    source,
+    /1st\s*Prize/i,
+    /Starter\s*Prizes?/i,
+    3,
+  );
+
   const starters = numbersBetween(
     source,
     /Starter\s*Prizes?/i,
     /Consolation\s*Prizes?/i,
     10,
   );
+
   const consolation = numbersBetween(
     source,
     /Consolation\s*Prizes?/i,
@@ -73,16 +146,20 @@ function winningNumbers(html, source, drawNo, dateMatch) {
   for (const match of html.matchAll(
     /<([a-z][\w:-]*)\b[^>]*>([^<>]*)<\/\1\s*>/gi,
   )) {
-    const value = text(match[2]);
+    const value = cleanText(match[2]);
     if (/^\d{4}$/.test(value)) values.push(value);
   }
 
-  const year = dateMatch[3];
+  const year = drawDateParts[3];
+
   const firstResult = values.findIndex(
     (value) => value !== drawNo && value !== year,
   );
+
   const results =
-    firstResult < 0 ? [] : values.slice(firstResult, firstResult + 23);
+    firstResult < 0
+      ? []
+      : values.slice(firstResult, firstResult + 23);
 
   if (results.length !== 23) {
     throw new Error(
@@ -93,43 +170,22 @@ function winningNumbers(html, source, drawNo, dateMatch) {
   return results;
 }
 
-function drawNumber(source, sourceUrl) {
-  const visible = source.match(
-    /\bDraw\s*(?:(?:No\.?|Number)\s*)?[:#-]?\s*(\d{4,})\b/i,
-  )?.[1];
-
-  if (visible) return visible;
-
-  const encoded = new URL(sourceUrl).searchParams.get("sppl");
-
-  if (encoded) {
-    try {
-      return Buffer.from(encoded, "base64")
-        .toString("utf8")
-        .match(/DrawNumber=(\d{4,})/i)?.[1];
-    } catch {
-      // Continue to legacy URL fallback.
-    }
-  }
-
-  return sourceUrl.match(
-    /fourd_result_draw_(\d+)\.html(?:[?#]|$)/i,
-  )?.[1];
-}
-
 function drawDateParts(source, html) {
   const header = source.split(/1st\s*Prize/i, 1)[0];
   const rawHeader = html.split(/1st(?:\s|&nbsp;|&#160;)*Prize/i, 1)[0];
+
   const candidates = [
     header,
     rawHeader.replace(/&(?:nbsp|#160|#x0*a0);/gi, " "),
   ];
 
   const separator = "(?:\\s|[,./-]|&(?:nbsp|#160|#x0*a0);)+";
+
   const dayFirstPattern = new RegExp(
     `\\b(\\d{1,2})${separator}([A-Za-z]{3,9}|\\d{1,2})${separator}(\\d{4})\\b`,
     "i",
   );
+
   const monthFirstPattern = new RegExp(
     `\\b([A-Za-z]{3,9})${separator}(\\d{1,2})${separator}(\\d{4})\\b`,
     "i",
@@ -162,12 +218,34 @@ function drawDateParts(source, html) {
   return null;
 }
 
-function validateResults(results, drawNo) {
-  if (results.length !== 23) {
-    throw new Error(
-      `Expected 23 results in draw ${drawNo}, found ${results.length}`,
-    );
-  }
+function buildResults(values, drawNo) {
+  const top = values.slice(0, 3);
+  const starters = values.slice(3, 13);
+  const consolation = values.slice(13);
+
+  const results = ["first", "second", "third"].map(
+    (prize_type, index) => ({
+      prize_type,
+      position: 1,
+      winning_number: top[index],
+    }),
+  );
+
+  starters.forEach((winning_number, index) => {
+    results.push({
+      prize_type: "starter",
+      position: index + 1,
+      winning_number,
+    });
+  });
+
+  consolation.forEach((winning_number, index) => {
+    results.push({
+      prize_type: "consolation",
+      position: index + 1,
+      winning_number,
+    });
+  });
 
   const expectedCounts = {
     first: 1,
@@ -176,6 +254,12 @@ function validateResults(results, drawNo) {
     starter: 10,
     consolation: 10,
   };
+
+  if (results.length !== 23) {
+    throw new Error(
+      `Expected 23 results in draw ${drawNo}, found ${results.length}`,
+    );
+  }
 
   for (const [prizeType, expected] of Object.entries(expectedCounts)) {
     const actual = results.filter(
@@ -199,22 +283,39 @@ function validateResults(results, drawNo) {
   ) {
     throw new Error(`Invalid result format in draw ${drawNo}`);
   }
+
+  return results;
 }
 
-export function parseDraw(html, sourceUrl = ARCHIVE_URL) {
-  const source = text(html);
+export function parseDraw(
+  html,
+  sourceUrl,
+  expectedDrawNo = null,
+) {
+  const source = cleanText(html);
 
   if (/Page\s+not\s+found/i.test(source)) {
+    throw new Error(`Page not found: ${sourceUrl}`);
+  }
+
+  const urlDrawNo = drawNoFromUrl(sourceUrl);
+  const pageDrawNo = visibleDrawNo(source);
+  const drawNo = expectedDrawNo ?? urlDrawNo ?? pageDrawNo;
+
+  if (!drawNo) {
+    throw new Error(`Could not determine draw number from ${sourceUrl}`);
+  }
+
+  if (expectedDrawNo && urlDrawNo && urlDrawNo !== expectedDrawNo) {
     throw new Error(
-      `Singapore Pools returned a page-not-found response for ${sourceUrl}`,
+      `URL draw mismatch: expected ${expectedDrawNo}, got ${urlDrawNo}`,
     );
   }
 
-  const drawNo = drawNumber(source, sourceUrl);
   const dateMatch = drawDateParts(source, html);
 
-  if (!drawNo || !dateMatch) {
-    throw new Error(`Could not parse draw identity from ${sourceUrl}`);
+  if (!dateMatch) {
+    throw new Error(`Could not parse draw date from ${sourceUrl}`);
   }
 
   const months = [
@@ -244,42 +345,18 @@ export function parseDraw(html, sourceUrl = ARCHIVE_URL) {
     `${dateMatch[3]}-${String(month).padStart(2, "0")}-` +
     `${dateMatch[1].padStart(2, "0")}`;
 
-  const values = winningNumbers(html, source, drawNo, dateMatch);
-  const top = values.slice(0, 3);
-  const starters = values.slice(3, 13);
-  const consolation = values.slice(13);
-
-  const results = ["first", "second", "third"].map(
-    (prize_type, index) => ({
-      prize_type,
-      position: 1,
-      winning_number: top[index],
-    }),
+  const values = extractWinningNumbers(
+    html,
+    source,
+    drawNo,
+    dateMatch,
   );
-
-  starters.forEach((winning_number, index) => {
-    results.push({
-      prize_type: "starter",
-      position: index + 1,
-      winning_number,
-    });
-  });
-
-  consolation.forEach((winning_number, index) => {
-    results.push({
-      prize_type: "consolation",
-      position: index + 1,
-      winning_number,
-    });
-  });
-
-  validateResults(results, drawNo);
 
   return {
     drawNo,
     drawDate,
     sourceUrl,
-    results,
+    results: buildResults(values, drawNo),
   };
 }
 
@@ -314,7 +391,8 @@ async function request(url, init = {}) {
 
 async function supabase(path, serviceKey, init = {}) {
   const base =
-    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+    process.env.SUPABASE_URL ??
+    process.env.NEXT_PUBLIC_SUPABASE_URL;
 
   return request(`${base}/rest/v1/${path}`, {
     ...init,
@@ -328,10 +406,42 @@ async function supabase(path, serviceKey, init = {}) {
   });
 }
 
+async function fetchCandidate(candidate) {
+  const errors = [];
+
+  for (const url of candidate.urls) {
+    try {
+      const html = await (await request(url)).text();
+      const draw = parseDraw(html, url, candidate.drawNo);
+
+      console.log(
+        JSON.stringify({
+          event: "draw_parsed",
+          drawNo: draw.drawNo,
+          drawDate: draw.drawDate,
+          sourceUrl: url,
+        }),
+      );
+
+      return draw;
+    } catch (error) {
+      errors.push({
+        url,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  throw new Error(
+    `All sources failed for draw ${candidate.drawNo}: ${JSON.stringify(errors)}`,
+  );
+}
+
 export async function run() {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const base =
-    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+    process.env.SUPABASE_URL ??
+    process.env.NEXT_PUBLIC_SUPABASE_URL;
 
   if (!base || !serviceKey) {
     throw new Error(
@@ -340,6 +450,7 @@ export async function run() {
   }
 
   const now = new Date();
+
   const cutoff = new Date(
     Date.UTC(
       now.getUTCFullYear() - 2,
@@ -348,31 +459,39 @@ export async function run() {
     ),
   );
 
-  const archive = await (await request(ARCHIVE_URL)).text();
-  const urls = discoverDrawUrls(archive);
+  const archiveHtml = await (
+    await request(ARCHIVE_LIST_URL)
+  ).text();
 
-  if (!urls.length) {
+  const candidates = discoverDrawCandidates(archiveHtml);
+
+  if (!candidates.length) {
     throw new Error(
-      "Singapore Pools archive did not contain any 4D draw numbers; its layout may have changed.",
+      "Singapore Pools archive did not contain any 4D draws.",
     );
   }
 
-  const runResponse = await supabase("import_runs", serviceKey, {
-    method: "POST",
-    body: JSON.stringify({
-      mode: "backfill",
-      game_code: "4d",
-      requested_from: cutoff.toISOString().slice(0, 10),
-      requested_to: now.toISOString().slice(0, 10),
-      status: "running",
-      created_by: "fourd-v1-importer",
-      started_at: now.toISOString(),
-      config: {
-        source: ARCHIVE_URL,
-        window_years: 2,
-      },
-    }),
-  });
+  const runResponse = await supabase(
+    "import_runs",
+    serviceKey,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        mode: "backfill",
+        game_code: "4d",
+        requested_from: cutoff.toISOString().slice(0, 10),
+        requested_to: now.toISOString().slice(0, 10),
+        status: "running",
+        created_by: "fourd-v4-importer",
+        started_at: now.toISOString(),
+        config: {
+          source: ARCHIVE_LIST_URL,
+          window_years: 2,
+          sources: ["legacy_archive", "current_sppl"],
+        },
+      }),
+    },
+  );
 
   const [{ id: runId }] = await runResponse.json();
 
@@ -380,17 +499,23 @@ export async function run() {
   let written = 0;
 
   try {
-    for (const url of urls) {
-      const draw = parseDraw(
-        await (await request(url)).text(),
-        url,
-      );
+    for (const candidate of candidates) {
+      const draw = await fetchCandidate(candidate);
 
       const date = new Date(`${draw.drawDate}T00:00:00Z`);
 
       if (date < cutoff || date > now) continue;
 
       found += 1;
+
+      console.log(
+        JSON.stringify({
+          event: "draw_import_start",
+          drawNo: draw.drawNo,
+          drawDate: draw.drawDate,
+          sourceUrl: draw.sourceUrl,
+        }),
+      );
 
       const response = await supabase(
         "rpc/import_fourd_v1_draw",
@@ -401,7 +526,7 @@ export async function run() {
             p_import_run_id: runId,
             p_draw_no: draw.drawNo,
             p_draw_date: draw.drawDate,
-            p_source_url: url,
+            p_source_url: draw.sourceUrl,
             p_checksum: checksum(draw),
             p_results: draw.results,
           }),
@@ -411,38 +536,47 @@ export async function run() {
       if (await response.json()) written += 1;
     }
 
-    await supabase(`import_runs?id=eq.${runId}`, serviceKey, {
-      method: "PATCH",
-      body: JSON.stringify({
-        status: "completed",
-        completed_at: new Date().toISOString(),
-        summary: {
-          draws_found: found,
-          draws_imported: written,
-          draws_unchanged: found - written,
-        },
-      }),
-    });
+    await supabase(
+      `import_runs?id=eq.${runId}`,
+      serviceKey,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          summary: {
+            draws_found: found,
+            draws_imported: written,
+            draws_unchanged: found - written,
+          },
+        }),
+      },
+    );
   } catch (error) {
-    await supabase(`import_runs?id=eq.${runId}`, serviceKey, {
-      method: "PATCH",
-      body: JSON.stringify({
-        status: "failed",
-        completed_at: new Date().toISOString(),
-        summary: {
-          draws_found: found,
-          draws_imported: written,
-          error:
-            error instanceof Error ? error.message : String(error),
-        },
-      }),
-    });
+    await supabase(
+      `import_runs?id=eq.${runId}`,
+      serviceKey,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: "failed",
+          completed_at: new Date().toISOString(),
+          summary: {
+            draws_found: found,
+            draws_imported: written,
+            error:
+              error instanceof Error ? error.message : String(error),
+          },
+        }),
+      },
+    );
 
     throw error;
   }
 
   console.log(
     JSON.stringify({
+      event: "import_complete",
       drawsFound: found,
       drawsImported: written,
       drawsUnchanged: found - written,
