@@ -1,18 +1,10 @@
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
+
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
+
+export const supabase = createClient(url, key);
 
 export function createServerClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!url || !key) {
-    throw new Error('Missing Supabase public environment variables.');
-  }
-
-  return createSupabaseClient(url, key, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-  });
+  return supabase;
 }
