@@ -382,9 +382,24 @@ async function request(url, init = {}) {
     signal: AbortSignal.timeout(20_000),
   });
 
-  if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}: ${url}`);
+ if (!response.ok) {
+  let responseBody = "";
+
+  try {
+    responseBody = await response.text();
+  } catch {
+    responseBody = "<unable to read response body>";
   }
+
+  throw new Error(
+    [
+      `${response.status} ${response.statusText}`,
+      `URL: ${url}`,
+      "Response body:",
+      responseBody,
+    ].join("\n"),
+  );
+}
 
   return response;
 }
