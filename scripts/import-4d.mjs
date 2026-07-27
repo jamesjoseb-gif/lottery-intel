@@ -21,14 +21,23 @@ export function discoverDrawUrls(html) {
   return [...found];
 }
 
-function numbersBetween(source, start, end, expected) {
-  const from = source.search(start);
-  if (from < 0) throw new Error(`Missing ${start.source} section`);
-  const tail = source.slice(from).replace(start, "");
-  const stop = tail.search(end);
-  const values = (stop < 0 ? tail : tail.slice(0, stop)).match(/(?<!\d)\d{4}(?!\d)/g) ?? [];
-  if (values.length !== expected) throw new Error(`Expected ${expected} numbers after ${start.source}, found ${values.length}`);
-  return values;
+function winningNumbers(html, drawNo, dateMatch) {
+  // Current detail pages may omit textual prize headings and render the 23
+  // results as individual leaf HTML elements in prize order: top three,
+  // ten Starter, then ten Consolation. Read those leaf values directly.
+  const values = [];
+  for (const match of html.matchAll(/<([a-z][\w:-]*)\b[^>]*>([^<>]*)<\/\1\s*>/gi)) {
+    const value = text(match[2]);
+    if (/^\d{4}$/.test(value)) values.push(value);
+  }
+
+  // Draw metadata can itself be a four-digit leaf (draw number or year). It is
+  // not a winning number and appears before the result cells.
+  const year = dateMatch[3];
+  const firstResult = values.findIndex((value) => value !== drawNo && value !== year);
+  const results = firstResult < 0 ? [] : values.slice(firstResult, firstResult + 23);
+  if (results.length !== 23) throw new Error(`Expected 23 winning-number cells, found ${results.length}`);
+  return results;
 }
 
 function drawNumber(source, sourceUrl) {
@@ -69,9 +78,10 @@ export function parseDraw(html, sourceUrl = ARCHIVE_URL) {
   const month = /^\d+$/.test(dateMatch[2]) ? Number(dateMatch[2]) : months.indexOf(dateMatch[2].slice(0, 3).toLowerCase()) + 1;
   if (month < 1 || month > 12) throw new Error(`Invalid draw date in ${sourceUrl}`);
   const drawDate = `${dateMatch[3]}-${String(month).padStart(2, "0")}-${dateMatch[1].padStart(2, "0")}`;
-  const top = numbersBetween(source, /1st\s*Prize/i, /Starter\s*Prizes?/i, 3);
-  const starters = numbersBetween(source, /Starter\s*Prizes?/i, /Consolation\s*Prizes?/i, 10);
-  const consolation = numbersBetween(source, /Consolation\s*Prizes?/i, /(?:Next\s*Draw|$)/i, 10);
+  const values = winningNumbers(html, drawNo, dateMatch);
+  const top = values.slice(0, 3);
+  const starters = values.slice(3, 13);
+  const consolation = values.slice(13);
   const results = ["first", "second", "third"].map((prize_type, i) => ({ prize_type, position: 1, winning_number: top[i] }));
   starters.forEach((winning_number, i) => results.push({ prize_type: "starter", position: i + 1, winning_number }));
   consolation.forEach((winning_number, i) => results.push({ prize_type: "consolation", position: i + 1, winning_number }));
