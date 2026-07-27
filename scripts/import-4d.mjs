@@ -36,25 +36,34 @@ function drawNumber(source, sourceUrl) {
     ?? sourceUrl.match(/fourd_result_draw_(\d+)\.html(?:[?#]|$)/i)?.[1];
 }
 
-function drawDateParts(source) {
+function drawDateParts(source, html) {
   // Dates have appeared both with and without a "Draw Date" label. Limit the
   // fallback search to the result header so a future "Next Draw" date cannot
-  // accidentally be assigned to this draw.
+  // accidentally be assigned to this draw. The current archive puts the date
+  // in an HTML attribute, so retain the raw header as well as its visible text.
   const header = source.split(/1st\s*Prize/i, 1)[0];
-  const labelled = header.match(/\bDraw\s*Date\s*[:#-]?\s*(\d{1,2})[\s\/-]+([A-Za-z]{3,9}|\d{1,2})[\s\/-]+(\d{4})\b/i);
-  const dayFirst = header.match(/\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)(?:day)?\s*,?\s*(\d{1,2})[\s\/-]+([A-Za-z]{3,9}|\d{1,2})[\s\/-]+(\d{4})\b/i)
-    ?? header.match(/\b(\d{1,2})[\s\/-]+([A-Za-z]{3,9}|\d{1,2})[\s\/-]+(\d{4})\b/i);
-  const monthFirst = header.match(/\b([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{4})\b/i);
-  const iso = header.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
-  if (labelled || dayFirst) return labelled ?? dayFirst;
-  if (monthFirst) return [monthFirst[0], monthFirst[2], monthFirst[1], monthFirst[3]];
-  if (iso) return [iso[0], iso[3], iso[2], iso[1]];
+  const rawHeader = html.split(/1st(?:\s|&nbsp;|&#160;)*Prize/i, 1)[0];
+  const candidates = [header, rawHeader.replace(/&(?:nbsp|#160|#x0*a0);/gi, " ")];
+  const separator = "(?:\\s|[,./-]|&(?:nbsp|#160|#x0*a0);)+";
+  const dayFirstPattern = new RegExp(`\\b(\\d{1,2})${separator}([A-Za-z]{3,9}|\\d{1,2})${separator}(\\d{4})\\b`, "i");
+  const monthFirstPattern = new RegExp(`\\b([A-Za-z]{3,9})${separator}(\\d{1,2})${separator}(\\d{4})\\b`, "i");
+
+  for (const candidate of candidates) {
+    const labelled = candidate.match(new RegExp(`\\bDraw(?:${separator})?Date[^A-Za-z0-9]{0,80}${dayFirstPattern.source}`, "i"));
+    if (labelled) return [labelled[0], labelled[1], labelled[2], labelled[3]];
+    const iso = candidate.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
+    if (iso) return [iso[0], iso[3], iso[2], iso[1]];
+    const dayFirst = candidate.match(dayFirstPattern);
+    if (dayFirst) return dayFirst;
+    const monthFirst = candidate.match(monthFirstPattern);
+    if (monthFirst) return [monthFirst[0], monthFirst[2], monthFirst[1], monthFirst[3]];
+  }
 }
 
 export function parseDraw(html, sourceUrl = ARCHIVE_URL) {
   const source = text(html);
   const drawNo = drawNumber(source, sourceUrl);
-  const dateMatch = drawDateParts(source);
+  const dateMatch = drawDateParts(source, html);
   if (!drawNo || !dateMatch) throw new Error(`Could not parse draw identity from ${sourceUrl}`);
   const months = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
   const month = /^\d+$/.test(dateMatch[2]) ? Number(dateMatch[2]) : months.indexOf(dateMatch[2].slice(0, 3).toLowerCase()) + 1;
