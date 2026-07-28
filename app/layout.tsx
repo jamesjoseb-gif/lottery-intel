@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
+
 export const metadata: Metadata = {
   title: {
-    default: "Lottery Intel | AI-Powered Lottery Intelligence",
+    default: "Lottery Intel | Smarter Lottery Decisions Through Historical Data",
     template: "%s | Lottery Intel",
   },
   description:
@@ -14,8 +21,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" className={inter.variable}>
+      <body className={inter.className}>
         <Header />
         <main>{children}</main>
         <Footer />
