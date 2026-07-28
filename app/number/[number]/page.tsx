@@ -12,6 +12,18 @@ const prizeLabels: Record<string, string> = {
   consolation: "Consolation",
 };
 
+function daysSince(date: string) {
+  const drawDate = new Date(`${date}T00:00:00+08:00`).getTime();
+  return Math.max(0, Math.floor((Date.now() - drawDate) / 86_400_000));
+}
+
+function recencyStatus(days: number | null) {
+  if (days === null) return "No history";
+  if (days <= 90) return "Recent";
+  if (days <= 365) return "Moderate gap";
+  return "Long gap";
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { number } = await params;
   return { title: `${number} 4D Number Intelligence` };
@@ -24,13 +36,17 @@ export default async function NumberPage({ params }: Props) {
   const result = await getNumberHistory(number);
   const rows = result.data ?? [];
   const count = (type: string) => rows.filter((row) => row.prize_type === type).length;
-  const metrics = [
+  const daysSinceLastSeen = rows[0] ? daysSince(rows[0].draw_date) : null;
+  const status = recencyStatus(daysSinceLastSeen);
+  const metrics: Array<[string, string | number]> = [
     ["Total appearances", rows.length],
     ["1st prize", count("first")],
     ["2nd prize", count("second")],
     ["3rd prize", count("third")],
     ["Starter", count("starter")],
     ["Consolation", count("consolation")],
+    ["Days since last seen", daysSinceLastSeen ?? "—"],
+    ["Recency status", status],
   ];
 
   return (
@@ -38,7 +54,7 @@ export default async function NumberPage({ params }: Props) {
       <span className="eyebrow">4D number profile</span>
       <h1>{number}</h1>
       <p className="notice">
-        Historical results describe the past only and do not predict future draws.
+        Historical results describe the past only and do not predict future draws. Recency status only describes the time since the latest recorded appearance.
       </p>
 
       {result.error ? (
@@ -61,7 +77,7 @@ export default async function NumberPage({ params }: Props) {
             <h2>Last appearance</h2>
             <p className="last-appearance">
               {rows[0]
-                ? `${formatDrawDate(rows[0].draw_date)} · Draw ${rows[0].draw_no} · ${prizeLabels[rows[0].prize_type]}`
+                ? `${formatDrawDate(rows[0].draw_date)} · Draw ${rows[0].draw_no} · ${prizeLabels[rows[0].prize_type]} · ${daysSinceLastSeen} days ago`
                 : "This number has no appearances in the published archive."}
             </p>
           </section>
