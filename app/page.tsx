@@ -11,7 +11,7 @@ const intelligenceItems = [
   ["Digit patterns", "Review each digit by position, frequency and historical spread."],
 ];
 
-const recentSearches = ["1234", "8888", "2026", "0001", "6789"];
+const popularSearches = ["1234", "8888", "2026", "0001", "6789"];
 
 export default async function HomePage() {
   const [fourDResult, totoResult, sweepResult] = await Promise.all([getLatestFourD(), getLatestToto(), getLatestSweep()]);
@@ -22,7 +22,7 @@ export default async function HomePage() {
       <section className="hero">
         <div className="container hero-grid">
           <div>
-            <span className="eyebrow">AI-Powered Lottery Intelligence</span>
+            <span className="eyebrow">Data-Driven Lottery Intelligence</span>
             <h1>Understand the numbers behind Singapore lottery results.</h1>
             <p className="hero-copy">
               Search official 4D history, review published results and explore transparent historical statistics. Free to use, with no registration required.
@@ -30,7 +30,7 @@ export default async function HomePage() {
             <SearchBox />
             <div className="quick-searches">
               <span>Popular searches</span>
-              {recentSearches.map((number) => (
+              {popularSearches.map((number) => (
                 <Link key={number} href={`/number/${number}`}>{number}</Link>
               ))}
             </div>
