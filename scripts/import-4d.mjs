@@ -103,6 +103,10 @@ export function discoverDrawCandidates(html) {
   return [...found.values()];
 }
 
+export function discoverDrawUrls(html) {
+  return discoverDrawCandidates(html).map(({ urls }) => urls[0]);
+}
+
 function numbersBetween(source, start, end, expected) {
   const from = source.search(start);
   if (from < 0) return null;
@@ -295,7 +299,7 @@ export function parseDraw(
   const source = cleanText(html);
 
   if (/Page\s+not\s+found/i.test(source)) {
-    throw new Error(`Page not found: ${sourceUrl}`);
+    throw new Error(`Page-not-found response: ${sourceUrl}`);
   }
 
   const urlDrawNo = drawNoFromUrl(sourceUrl);

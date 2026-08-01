@@ -7,8 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "node --test scripts/*.test.mjs && node --experimental-strip-types --test lib/*.test.ts",
     "import:4d": "node scripts/import-4d.mjs",
-    "test:importer": "node --test scripts/import-4d.test.mjs"
+    "test:importer": "node --test scripts/import-4d.test.mjs",
+    "verify:4d": "node scripts/verify-4d-integrity.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.6.1",
