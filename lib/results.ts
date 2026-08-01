@@ -4,6 +4,7 @@ export type DrawInfo = { draw_id: string; draw_no: string; draw_date: string; pu
 export type FourDRow = DrawInfo & { prize_type: "first" | "second" | "third" | "starter" | "consolation"; position: number; winning_number: string };
 export type TotoRow = DrawInfo & { number_kind: "main" | "additional"; position: number; winning_number: number };
 export type SweepRow = DrawInfo & { tier_code: string; source_label: string; position: number; ticket_number: string; series: string | null; entry_suffix: string | null; source_display_value: string };
+export type FourDStatistic = { winning_number: string; appearances: number; first_prizes: number; second_prizes: number; third_prizes: number; starter_prizes: number; consolation_prizes: number; last_seen_on: string };
 
 type QueryResult<T> = { data: T; error: null } | { data: null; error: string };
 
@@ -42,6 +43,13 @@ async function getLatestRows<T>(game: "4d" | "toto" | "sweep", view: string): Pr
 
 export function getNumberHistory(number: string) {
   return safely<FourDRow[]>(() => publicView("published_fourd_results").select("*").eq("winning_number", number).order("draw_date", { ascending: false }), []);
+}
+
+export function getFourDStatistics(limit = 50) {
+  return safely<FourDStatistic[]>(
+    () => publicView("fourd_number_statistics").select("*").order("appearances", { ascending: false }).order("last_seen_on", { ascending: false }).order("winning_number").limit(limit),
+    [],
+  );
 }
 
 export function formatDrawDate(date: string) {

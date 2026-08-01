@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { normalizeFourDNumber, sanitizeFourDInput } from "@/lib/fourd-number";
 
 export function SearchBox() {
   const [value, setValue] = useState("");
@@ -9,7 +10,8 @@ export function SearchBox() {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const number = value.replace(/\D/g, "").slice(0, 4).padStart(4, "0");
+    const number = normalizeFourDNumber(value);
+    if (!number) return;
     router.push(`/number/${number}`);
   }
 
@@ -20,13 +22,13 @@ export function SearchBox() {
         <input
           id="number-search"
           value={value}
-          onChange={(event) => setValue(event.target.value.replace(/\D/g, "").slice(0, 4))}
+          onChange={(event) => setValue(sanitizeFourDInput(event.target.value))}
           inputMode="numeric"
           pattern="[0-9]{1,4}"
           placeholder="e.g. 1234"
           aria-describedby="search-help"
         />
-        <button type="submit">View intelligence</button>
+        <button type="submit" disabled={!normalizeFourDNumber(value)}>View intelligence</button>
       </div>
       <small id="search-help">Enter between 1 and 4 digits. Leading zeroes are supported.</small>
     </form>

@@ -20,7 +20,10 @@ jobs:
           node-version: 22
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Test importer and integrity rules
+        run: npm test
 
       - name: Capture Singapore Pools draw HTML
         continue-on-error: true
