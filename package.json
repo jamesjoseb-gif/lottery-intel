@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "npm run test:importer",
     "import:4d": "node scripts/import-4d.mjs",
     "test:importer": "node --test scripts/import-4d.test.mjs"
   },
