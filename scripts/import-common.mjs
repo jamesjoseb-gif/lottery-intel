@@ -37,6 +37,28 @@ export function importMode({ drawNo, from, to } = {}) {
   return drawNo ? "single" : from || to ? "backfill" : "latest";
 }
 
+export function importSelectors(env = process.env) {
+  const normalize = (value) => value?.trim() || null;
+  return {
+    drawNo: normalize(env.IMPORT_DRAW_NO),
+    from: normalize(env.IMPORT_FROM),
+    to: normalize(env.IMPORT_TO),
+  };
+}
+
+export function importRunRecord(config, selectors, startedAt) {
+  return {
+    mode: importMode(selectors),
+    game_code: config.game,
+    requested_from: selectors.from,
+    requested_to: selectors.to,
+    status: "running",
+    created_by: config.importer,
+    started_at: startedAt,
+    config: { source: config.listUrl, draw_no: selectors.drawNo },
+  };
+}
+
 export function validateIdentity(html, expectedDrawNo, url) {
   const text = cleanHtml(html);
   if (/page\s*not\s*found|object\s*moved/i.test(text)) throw new Error(`Page not found: ${url}`);
@@ -65,14 +87,12 @@ export async function runImporter(config) {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!(process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL) || !key) throw new Error("Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY before importing.");
   const candidates = discover(await (await request(config.listUrl)).text(), config.detailPage);
-  const requestedDraw = process.env.IMPORT_DRAW_NO;
-  const from = process.env.IMPORT_FROM;
-  const to = process.env.IMPORT_TO;
+  const { drawNo: requestedDraw, from, to } = importSelectors();
   const selected = selectDraws(candidates, { drawNo: requestedDraw, from, to });
   if (!selected.length) throw new Error("No official draws matched the requested draw/range.");
   const started = new Date().toISOString();
-  const mode = importMode({ drawNo: requestedDraw, from, to });
-  const runRes = await api("import_runs", key, { method: "POST", body: JSON.stringify({ mode, game_code: config.game, requested_from: from, requested_to: to, status: "running", created_by: config.importer, started_at: started, config: { source: config.listUrl, draw_no: requestedDraw ?? null } }) });
+  const selectors = { drawNo: requestedDraw, from, to };
+  const runRes = await api("import_runs", key, { method: "POST", body: JSON.stringify(importRunRecord(config, selectors, started)) });
   const [{ id }] = await runRes.json(); let written = 0;
   try {
     for (const candidate of selected) {
