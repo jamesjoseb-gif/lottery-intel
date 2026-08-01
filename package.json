@@ -10,7 +10,11 @@
     "test": "node --test scripts/*.test.mjs && node --experimental-strip-types --test lib/*.test.ts",
     "import:4d": "node scripts/import-4d.mjs",
     "test:importer": "node --test scripts/import-4d.test.mjs",
-    "verify:4d": "node scripts/verify-4d-integrity.mjs"
+    "verify:4d": "node scripts/verify-4d-integrity.mjs",
+    "import:toto": "node scripts/import-toto.mjs",
+    "verify:toto": "node scripts/verify-toto.mjs",
+    "import:sweep": "node scripts/import-sweep.mjs",
+    "verify:sweep": "node scripts/verify-sweep.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.6.1",

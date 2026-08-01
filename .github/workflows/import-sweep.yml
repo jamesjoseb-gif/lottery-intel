@@ -1,0 +1,30 @@
+name: Import Big Sweep results
+on:
+  workflow_dispatch:
+    inputs:
+      draw_no: { description: "Optional single draw number", required: false, type: string }
+      from: { description: "Optional start date (YYYY-MM-DD)", required: false, type: string }
+      to: { description: "Optional end date (YYYY-MM-DD)", required: false, type: string }
+  schedule:
+    # 21:30 and 23:30 Singapore time on the 8th, after the first-Wednesday publication window.
+    - cron: "30 13 8 * *"
+    - cron: "30 15 8 * *"
+permissions: { contents: read }
+concurrency: { group: import-sweep, cancel-in-progress: false }
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      IMPORT_DRAW_NO: ${{ inputs.draw_no }}
+      IMPORT_FROM: ${{ inputs.from }}
+      IMPORT_TO: ${{ inputs.to }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run import:sweep
+      - run: npm run verify:sweep
