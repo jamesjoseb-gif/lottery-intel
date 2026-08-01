@@ -1,0 +1,10 @@
+import test from "node:test"; import assert from "node:assert/strict"; import { readFileSync } from "node:fs";
+import { discoverTotoDraws, parseTotoDraw, validateTotoDraw } from "./import-toto.mjs"; import { checksum } from "./import-common.mjs";
+const fixture = readFileSync(new URL("fixtures/toto-valid.html", import.meta.url), "utf8");
+test("discovers official TOTO draw list entries", () => assert.equal(discoverTotoDraws(`<option queryString='sppl=abc' value='4204'>Thu, 30 Jul 2026</option>`)[0].drawNo, "4204"));
+test("parses and validates six ordered main numbers plus additional", () => { const d = parseTotoDraw(fixture, "official", "4204"); assert.deepEqual(d.results.map(r => r.winning_number), [4,7,16,23,30,32,8]); });
+test("rejects missing numbers and layout changes", () => assert.throws(() => parseTotoDraw(fixture.replace('class="win6"', 'class="changed"'), "official"), /Expected 6/));
+test("rejects duplicate main and additional numbers", () => { assert.throws(() => parseTotoDraw(fixture.replace('class="win2">7', 'class="win2">4'), "official"), /Duplicate/); assert.throws(() => parseTotoDraw(fixture.replace('class="additional">8', 'class="additional">4'), "official"), /Additional number duplicates/); });
+test("rejects source page not found", () => assert.throws(() => parseTotoDraw("Page not found", "official"), /Page not found/));
+test("validator rejects duplicate positions", () => assert.equal(validateTotoDraw({drawNo:"1",drawDate:"2026-01-01",results:[1,2,3,4,5,6].map(n=>({number_kind:"main",position:1,winning_number:n})).concat({number_kind:"additional",position:1,winning_number:7})}).ok, false));
+test("normalization checksum is stable for idempotent re-imports", () => assert.equal(checksum(parseTotoDraw(fixture,"official","4204")), checksum(parseTotoDraw(fixture,"official","4204"))));

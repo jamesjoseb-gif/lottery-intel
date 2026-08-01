@@ -1,0 +1,31 @@
+name: Import TOTO results
+on:
+  workflow_dispatch:
+    inputs:
+      draw_no: { description: "Optional single draw number", required: false, type: string }
+      from: { description: "Optional start date (YYYY-MM-DD)", required: false, type: string }
+      to: { description: "Optional end date (YYYY-MM-DD)", required: false, type: string }
+  schedule:
+    # 19:30 and 21:30 Singapore time every Monday and Thursday.
+    - cron: "30 11 * * 1,4"
+    - cron: "30 13 * * 1,4"
+permissions: { contents: read }
+concurrency: { group: import-toto, cancel-in-progress: false }
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      IMPORT_DRAW_NO: ${{ inputs.draw_no }}
+      IMPORT_FROM: ${{ inputs.from }}
+      IMPORT_TO: ${{ inputs.to }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run verify:live
+      - run: npm run import:toto
+      - run: npm run verify:toto
