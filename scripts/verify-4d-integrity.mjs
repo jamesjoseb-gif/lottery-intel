@@ -32,11 +32,11 @@ export function verifyFourDIntegrity(rows) {
   return { ok: errors.length === 0, drawsChecked: draws.size, rowsChecked: rows.length, errors };
 }
 
-async function fetchPublishedRows() {
+export async function fetchPublishedRows(fetchImpl = fetch) {
   const base = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!base || !key) throw new Error("Set SUPABASE_URL and a Supabase API key before verifying.");
-  const response = await fetch(`${base}/rest/v1/published_fourd_results?select=draw_id,draw_no,prize_type,position,winning_number`, {
+  const response = await fetchImpl(`${base}/rest/v1/published_fourd_results?select=draw_id,draw_no,prize_type,position,winning_number`, {
     headers: { apikey: key, authorization: `Bearer ${key}`, "Accept-Profile": "api_public" },
   });
   if (!response.ok) throw new Error(`Supabase returned ${response.status}: ${await response.text()}`);
