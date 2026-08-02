@@ -8,13 +8,20 @@ export function Header() {
           <span className="brand-mark" aria-hidden="true"><span /></span>
           <span><strong>Lottery</strong> <em>Intel</em></span>
         </Link>
-        <nav aria-label="Primary navigation">
+        <nav className="desktop-nav" aria-label="Primary navigation">
           <Link href="/4d">4D</Link>
           <Link href="/toto">TOTO</Link>
           <Link href="/singapore-sweep">Sweep</Link>
           <Link href="/statistics">Statistics</Link>
           <Link href="/live">Results Centre</Link>
         </nav>
+        <details className="mobile-nav">
+          <summary aria-label="Open navigation menu">Menu</summary>
+          <nav aria-label="Mobile navigation">
+            <Link href="/4d">4D</Link><Link href="/toto">TOTO</Link><Link href="/singapore-sweep">Sweep</Link>
+            <Link href="/statistics">Statistics</Link><Link href="/live">Results Centre</Link>
+          </nav>
+        </details>
       </div>
     </header>
   );

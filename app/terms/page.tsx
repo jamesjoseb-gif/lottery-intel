@@ -1,0 +1,3 @@
+import type { Metadata } from "next";
+export const metadata: Metadata = { title: "Terms and responsible use" };
+export default function TermsPage() { return <div className="container page-shell"><span className="eyebrow">Information</span><h1>Terms and responsible use</h1><div className="data-panel"><p>Lottery Intel provides published results and historical statistics for informational use. No historical result or statistic predicts or guarantees a future winning result.</p><p>Official result data is attributed to Singapore Pools. Always verify important information with the official source.</p></div></div>; }
