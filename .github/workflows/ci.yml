@@ -20,5 +20,5 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npx tsc --noEmit
-      - run: npm run build
+      - run: env -u NEXT_PUBLIC_SUPABASE_URL -u NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY -u NEXT_PUBLIC_SUPABASE_ANON_KEY npm run build
       - run: git diff --check
