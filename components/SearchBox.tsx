@@ -12,7 +12,7 @@ export function SearchBox() {
     event.preventDefault();
     const number = normalizeFourDNumber(value);
     if (!number) return;
-    router.push(`/number/${number}`);
+    router.push(`/4d/number/${number}`);
   }
 
   return (
