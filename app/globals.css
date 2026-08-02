@@ -255,3 +255,57 @@ a { color: inherit; text-decoration: none; }
 @media (max-width: 640px) {
   .recent-grid, .stats-preview, .steps-grid, .footer-grid { grid-template-columns: 1fr; }
 }
+
+/* Results Centre and published archives */
+.centre-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.centre-card { display: flex; flex-direction: column; min-width: 0; }
+.centre-card h2 { margin: 0; font-size: 27px; }
+.centre-card > p { color: var(--muted); }
+.centre-card dl { margin: 8px 0 18px; }
+.centre-card dl div { display: flex; justify-content: space-between; gap: 16px; padding: 11px 0; border-top: 1px solid var(--line); }
+.centre-card dt { color: var(--muted); }
+.centre-card dd { margin: 0; text-align: right; font-weight: 700; }
+.centre-card > small, .coverage-note, .inline-state { color: var(--muted); }
+.archive-link { margin-top: auto; padding-top: 22px; color: var(--blue); font-weight: 700; }
+.coverage-note { padding: 14px 18px; border-left: 4px solid var(--gold); background: #fffaf0; }
+.archive-filters { display: grid; grid-template-columns: 1fr 1fr auto auto; align-items: end; gap: 12px; margin: 28px 0; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--bg); }
+.archive-filters label { display: grid; gap: 6px; color: var(--muted); font-size: 13px; font-weight: 700; }
+.archive-filters input { width: 100%; min-width: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--navy); }
+.archive-filters button, .archive-filters a, .pagination a { min-height: 44px; padding: 11px 16px; border: 1px solid var(--blue); border-radius: 9px; text-align: center; font-weight: 700; }
+.archive-filters button { background: var(--blue); color: #fff; cursor: pointer; }
+.archive-filters a { border-color: var(--line); background: #fff; }
+.archive-draw { overflow: hidden; }
+.archive-draw-heading { display: flex; align-items: center; gap: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.archive-draw-heading > div { margin-right: auto; }
+.archive-draw-heading h2, .archive-draw-heading p { margin: 0; }
+.archive-draw-heading p, .row-count { color: var(--muted); }
+.archive-draw-heading > a, .back-link { color: var(--blue); font-weight: 700; }
+.draw-results section h3 { margin: 22px 0 10px; }
+.top-prize-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 20px; }
+.top-prize-grid > div { padding: 16px; border-radius: 12px; background: var(--bg); }
+.top-prize-grid span { display: block; color: var(--muted); font-size: 13px; }
+.winning-number { display: block; color: var(--blue); font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: .08em; }
+.number-list .winning-number { padding: 14px 8px; border-radius: 11px; background: var(--bg); text-align: center; }
+.sweep-tier-list { display: grid; gap: 12px; margin-top: 20px; }
+.sweep-tier-list details { border: 1px solid var(--line); border-radius: 13px; overflow: clip; }
+.sweep-tier-list summary { display: flex; justify-content: space-between; gap: 14px; padding: 16px 18px; background: var(--bg); cursor: pointer; font-weight: 700; }
+.sweep-tier-list summary small { color: var(--muted); font-weight: 500; }
+.sweep-tier-list .sweep-list { padding: 14px; }
+.sweep-entry { min-width: 0; padding: 12px 8px; border-radius: 10px; background: var(--bg); text-align: center; }
+.sweep-entry strong { display: block; overflow-wrap: anywhere; font-size: 18px; font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+.sweep-entry small { display: block; margin-top: 4px; color: var(--muted); overflow-wrap: anywhere; }
+.pagination { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 24px; }
+.pagination span { margin-right: auto; color: var(--muted); }
+.draw-page .eyebrow { display: block; margin-top: 26px; }
+@media (max-width: 900px) { .centre-grid { grid-template-columns: 1fr; } }
+@media (max-width: 640px) {
+  .page-shell h1 { font-size: 38px; }
+  .archive-filters { grid-template-columns: 1fr; }
+  .archive-draw { padding: 18px; }
+  .archive-draw-heading { align-items: flex-start; flex-wrap: wrap; }
+  .archive-draw-heading > div { width: 100%; }
+  .top-prize-grid { grid-template-columns: 1fr; }
+  .sweep-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pagination { flex-wrap: wrap; justify-content: flex-start; }
+  .pagination span { width: 100%; }
+}
