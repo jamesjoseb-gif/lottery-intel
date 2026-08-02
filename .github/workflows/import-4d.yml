@@ -2,14 +2,32 @@ name: Import 4D results
 
 on:
   workflow_dispatch:
+    inputs:
+      from:
+        description: "Inclusive start date (YYYY-MM-DD; max 370 days)"
+        required: true
+        type: string
+      to:
+        description: "Inclusive end date (YYYY-MM-DD; max 370 days)"
+        required: true
+        type: string
 
 permissions:
   contents: read
 
+concurrency:
+  group: import-4d
+  cancel-in-progress: false
+
 jobs:
   import-4d:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 90
+    env:
+      IMPORT_FROM: ${{ inputs.from }}
+      IMPORT_TO: ${{ inputs.to }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -18,6 +36,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -25,27 +44,8 @@ jobs:
       - name: Test importer and integrity rules
         run: npm test
 
-      - name: Capture Singapore Pools draw HTML
-        continue-on-error: true
-        run: |
-          mkdir -p diagnostics
-          curl --location --fail --silent --show-error \
-            --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36" \
-            "https://www.singaporepools.com.sg/DataFileArchive/Lottery/Output/fourd_result_draw_5514.html" \
-            --output diagnostics/fourd_result_draw_5514.html
-          wc -c diagnostics/fourd_result_draw_5514.html || true
-
       - name: Import 4D results
         run: npm run import:4d
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      - name: Upload parser diagnostic HTML
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: singapore-pools-4d-html
-          path: diagnostics/*.html
-          if-no-files-found: warn
-          retention-days: 7
+      - name: Verify all published 4D draws
+        run: npm run verify:4d
