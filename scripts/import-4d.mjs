@@ -10,6 +10,10 @@ export const LEGACY_DETAIL_ROOT =
 export const CURRENT_RESULTS_URL =
   "https://www.singaporepools.com.sg/en/product/Pages/4d_results.aspx";
 
+export const EARLIEST_SUPPORTED_DRAW = 1;
+export const EARLIEST_SUPPORTED_DATE = "1986-05-31";
+export const MAX_BATCH_DAYS = 370;
+
 function cleanText(html) {
   return html
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
@@ -24,6 +28,14 @@ function cleanText(html) {
 function currentResultUrl(drawNo) {
   const sppl = Buffer.from(`DrawNumber=${drawNo}`).toString("base64");
   return `${CURRENT_RESULTS_URL}?sppl=${sppl}`;
+}
+
+function isoArchiveDate(value) {
+  const match = value.match(/(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})/i);
+  if (!match) return null;
+  const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  const month = months.indexOf(match[2].slice(0, 3).toLowerCase()) + 1;
+  return month ? `${match[3]}-${String(month).padStart(2, "0")}-${match[1].padStart(2, "0")}` : null;
 }
 
 function legacyResultUrl(drawNo) {
@@ -97,6 +109,16 @@ export function discoverDrawCandidates(html) {
         drawNo,
         urls: [currentResultUrl(drawNo), legacyResultUrl(drawNo)],
       });
+    }
+  }
+
+  for (const match of html.matchAll(
+    /<option\b[^>]*value=['"]?(\d+)['"]?[^>]*queryString=['"][^'"]+['"][^>]*isCancelled=['"]([^'"]*)['"][^>]*>([^<]+)<\/option>/gi,
+  )) {
+    const existing = found.get(match[1]);
+    if (existing) {
+      existing.drawDate = isoArchiveDate(match[3]);
+      existing.cancelled = match[2].trim() !== "";
     }
   }
 
@@ -310,6 +332,14 @@ export function parseDraw(
     throw new Error(`Could not determine draw number from ${sourceUrl}`);
   }
 
+  if (!pageDrawNo) {
+    throw new Error(`Could not verify draw number in official page ${sourceUrl}`);
+  }
+
+  if (pageDrawNo !== String(drawNo)) {
+    throw new Error(`Page draw mismatch: expected ${drawNo}, got ${pageDrawNo}`);
+  }
+
   if (expectedDrawNo && urlDrawNo && urlDrawNo !== expectedDrawNo) {
     throw new Error(
       `URL draw mismatch: expected ${expectedDrawNo}, got ${urlDrawNo}`,
@@ -376,36 +406,36 @@ export function checksum(draw) {
     .digest("hex");
 }
 
-async function request(url, init = {}) {
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      "user-agent": "LotteryIntel/1.0 (+Singapore 4D importer)",
-      ...init.headers,
-    },
-    signal: AbortSignal.timeout(20_000),
-  });
+export async function request(url, init = {}, { attempts = 4 } = {}) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        ...init,
+        headers: {
+          "user-agent": "LotteryIntel/1.0 (+Singapore 4D importer)",
+          ...init.headers,
+        },
+        signal: AbortSignal.timeout(20_000),
+      });
 
- if (!response.ok) {
-  let responseBody = "";
-
-  try {
-    responseBody = await response.text();
-  } catch {
-    responseBody = "<unable to read response body>";
+      if (response.ok) return response;
+      const responseBody = await response.text().catch(() => "<unable to read response body>");
+      const error = new Error(`${response.status} ${response.statusText}\nURL: ${url}\nResponse body:\n${responseBody}`);
+      if (response.status !== 429 && response.status < 500) {
+        error.retryable = false;
+        throw error;
+      }
+      lastError = error;
+    } catch (error) {
+      if (error?.retryable === false) throw error;
+      lastError = error;
+      if (attempt === attempts) break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500 * (2 ** (attempt - 1))));
   }
 
-  throw new Error(
-    [
-      `${response.status} ${response.statusText}`,
-      `URL: ${url}`,
-      "Response body:",
-      responseBody,
-    ].join("\n"),
-  );
-}
-
-  return response;
+  throw lastError;
 }
 
 async function supabase(path, serviceKey, init = {}) {
@@ -456,6 +486,41 @@ async function fetchCandidate(candidate) {
   );
 }
 
+export function importRange(env = process.env) {
+  const from = env.IMPORT_FROM?.trim();
+  const to = env.IMPORT_TO?.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from ?? "") || !/^\d{4}-\d{2}-\d{2}$/.test(to ?? "")) {
+    throw new Error("IMPORT_FROM and IMPORT_TO are required in YYYY-MM-DD format.");
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  const validDate = (value) => {
+    const date = new Date(`${value}T00:00:00Z`);
+    return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+  };
+  if (!validDate(from) || !validDate(to) || from < EARLIEST_SUPPORTED_DATE || from > to || to > today) {
+    throw new Error("Requested 4D date range is invalid or unsupported.");
+  }
+  const days = Math.floor((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
+  if (days > MAX_BATCH_DAYS) throw new Error(`4D batches may not exceed ${MAX_BATCH_DAYS} days.`);
+  return { from, to };
+}
+
+export async function findDrawBoundary(targetDate, low, high, findFirst, fetcher = fetchCandidate) {
+  let answer = findFirst ? high + 1 : low - 1;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const draw = await fetcher({ drawNo: String(middle), urls: [currentResultUrl(String(middle))] });
+    if (draw.drawDate > targetDate || (findFirst && draw.drawDate === targetDate)) {
+      if (draw.drawDate === targetDate || findFirst) answer = middle;
+      high = middle - 1;
+    } else {
+      if (!findFirst) answer = middle;
+      low = middle + 1;
+    }
+  }
+  return answer;
+}
+
 export async function run() {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const base =
@@ -469,14 +534,7 @@ export async function run() {
   }
 
   const now = new Date();
-
-  const cutoff = new Date(
-    Date.UTC(
-      now.getUTCFullYear() - 2,
-      now.getUTCMonth(),
-      now.getUTCDate(),
-    ),
-  );
+  const { from, to } = importRange();
 
   const archiveHtml = await (
     await request(ARCHIVE_LIST_URL)
@@ -490,6 +548,17 @@ export async function run() {
     );
   }
 
+  const latestDrawNo = Math.max(...candidates.map(({ drawNo }) => Number(drawNo)));
+  const firstDraw = await findDrawBoundary(from, EARLIEST_SUPPORTED_DRAW, latestDrawNo, true);
+  const lastDraw = await findDrawBoundary(to, EARLIEST_SUPPORTED_DRAW, latestDrawNo, false);
+  if (firstDraw > lastDraw) throw new Error("No published official 4D draws matched the requested range.");
+  const selected = [];
+  for (let drawNo = firstDraw; drawNo <= lastDraw; drawNo += 1) {
+    selected.push(candidates.find((candidate) => Number(candidate.drawNo) === drawNo) ?? {
+      drawNo: String(drawNo), urls: [currentResultUrl(String(drawNo))],
+    });
+  }
+
   const runResponse = await supabase(
     "import_runs",
     serviceKey,
@@ -498,14 +567,16 @@ export async function run() {
       body: JSON.stringify({
         mode: "backfill",
         game_code: "4d",
-        requested_from: cutoff.toISOString().slice(0, 10),
-        requested_to: now.toISOString().slice(0, 10),
+        requested_from: from,
+        requested_to: to,
         status: "running",
         created_by: "fourd-v4-importer",
         started_at: now.toISOString(),
         config: {
           source: ARCHIVE_LIST_URL,
-          window_years: 2,
+          supported_from: EARLIEST_SUPPORTED_DATE,
+          draw_from: firstDraw,
+          draw_to: lastDraw,
           sources: ["legacy_archive", "current_sppl"],
         },
       }),
@@ -516,14 +587,24 @@ export async function run() {
 
   let found = 0;
   let written = 0;
+  const failures = [];
 
   try {
-    for (const candidate of candidates) {
-      const draw = await fetchCandidate(candidate);
+    for (const candidate of selected) {
+      if (candidate.cancelled) {
+        console.log(JSON.stringify({ event: "draw_cancelled", drawNo: candidate.drawNo }));
+        continue;
+      }
+      let draw;
+      try {
+        draw = await fetchCandidate(candidate);
+      } catch (error) {
+        failures.push({ drawNo: candidate.drawNo, error: error instanceof Error ? error.message : String(error) });
+        console.error(JSON.stringify({ event: "draw_failed", ...failures.at(-1) }));
+        continue;
+      }
 
-      const date = new Date(`${draw.drawDate}T00:00:00Z`);
-
-      if (date < cutoff || date > now) continue;
+      if (draw.drawDate < from || draw.drawDate > to) continue;
 
       found += 1;
 
@@ -553,7 +634,13 @@ export async function run() {
       );
 
       if (await response.json()) written += 1;
+      await supabase(`import_runs?id=eq.${runId}`, serviceKey, {
+        method: "PATCH",
+        body: JSON.stringify({ heartbeat_at: new Date().toISOString(), summary: { draws_found: found, draws_imported: written, failures } }),
+      });
     }
+
+    if (failures.length) throw new Error(`${failures.length} draw(s) failed; rerun this range after review.`);
 
     await supabase(
       `import_runs?id=eq.${runId}`,
