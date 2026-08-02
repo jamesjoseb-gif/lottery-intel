@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeFourDNumber, sanitizeFourDInput } from "./fourd-number.ts";
+import { adjacentFourDNumbers, buildNumberHistoryStats, normalizeFourDNumber, relatedFourDNumbers, sanitizeFourDInput } from "./fourd-number.ts";
 
 test("normalizes one to four digits and preserves leading zeroes", () => {
   assert.equal(normalizeFourDNumber("7"), "0007");
@@ -17,6 +17,27 @@ test("does not turn empty or invalid input into a number", () => {
 
 test("sanitizes typing to no more than four digits", () => {
   assert.equal(sanitizeFourDInput("a01-2345"), "0123");
+});
+
+test("calculates history summaries, gaps, and breakdowns", () => {
+  const stats = buildNumberHistoryStats([
+    { draw_date: "2024-01-01", prize_type: "first" },
+    { draw_date: "2024-01-11", prize_type: "starter" },
+    { draw_date: "2025-02-10", prize_type: "first" },
+  ], new Date("2025-02-20T00:00:00Z"));
+  assert.equal(stats.total, 3);
+  assert.deepEqual(stats.gaps, { average: 203, shortest: 10, longest: 396 });
+  assert.equal(stats.daysSinceLast, 10);
+  assert.deepEqual(stats.prizes, { first: 2, second: 0, third: 0, starter: 1, consolation: 0 });
+  assert.deepEqual(stats.years, [["2025", 1], ["2024", 2]]);
+  assert.deepEqual(stats.weekdays, [["Monday", 2], ["Thursday", 1]]);
+});
+
+test("builds leading-zero-safe adjacent and related navigation", () => {
+  assert.deepEqual(adjacentFourDNumbers("0000"), { previous: "9999", next: "0001" });
+  assert.deepEqual(adjacentFourDNumbers("9999"), { previous: "9998", next: "0000" });
+  assert.ok(relatedFourDNumbers("0012").includes("2100"));
+  assert.ok(relatedFourDNumbers("0012").every((number) => number.length === 4));
 });
 
 import { summarizeFourDDraws, type DrawRow } from "./homepage-data.ts";
