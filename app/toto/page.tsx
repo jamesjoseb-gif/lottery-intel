@@ -1,36 +1,12 @@
 import type { Metadata } from "next";
-import { formatDrawDate, getLatestToto } from "@/lib/results";
-
-export const metadata: Metadata = { title: "Singapore TOTO Results" };
+import { ArchiveFilters, DrawHeading, Pagination, TotoResults } from "@/components/Archive";
+import { getArchive, getCoverage, type TotoRow } from "@/lib/results";
+export const metadata: Metadata = { title: "Singapore TOTO Results Archive", description: "Browse published Singapore TOTO winning numbers by date and draw number." };
 export const revalidate = 60;
-
-export default async function TotoPage() {
-  const result = await getLatestToto();
-  const rows = result.data ?? [];
-  const draw = rows[0];
-  const mainNumbers = rows.filter((row) => row.number_kind === "main");
-  const additional = rows.find((row) => row.number_kind === "additional");
-
-  return (
-    <div className="container page-shell">
-      <span className="eyebrow">Singapore TOTO</span>
-      <h1>Official TOTO results</h1>
-      {result.error ? (
-        <p className="state state-error">Results could not be loaded. Please try again later.</p>
-      ) : !draw ? (
-        <p className="state">No published TOTO result is available yet.</p>
-      ) : (
-        <section className="data-panel">
-          <p className="draw-meta">Draw {draw.draw_no} · {formatDrawDate(draw.draw_date)}</p>
-          <h2>Winning numbers</h2>
-          {mainNumbers.length ? (
-            <div className="number-balls large">{mainNumbers.map((row) => <b key={row.position}>{row.winning_number}</b>)}</div>
-          ) : (
-            <p className="state">Main numbers have not been published for this draw.</p>
-          )}
-          <div className="additional-number"><span>Additional number</span><strong>{additional?.winning_number ?? "—"}</strong></div>
-        </section>
-      )}
-    </div>
-  );
+export default async function TotoPage({ searchParams }: { searchParams: Promise<{ date?: string; draw?: string; page?: string }> }) {
+  const filters = await searchParams; const [archive, coverage] = await Promise.all([getArchive<TotoRow>("toto", filters), getCoverage("toto")]); const data = archive.data;
+  return <div className="container page-shell archive-page"><span className="eyebrow">Singapore TOTO</span><h1>TOTO results archive</h1><p className="section-copy">An archive of published results for reference—not predictions or betting advice.</p>
+    {coverage.data && <p className="coverage-note"><strong>{coverage.data.count.toLocaleString("en-SG")}</strong> published draws from {coverage.data.firstDate} to {coverage.data.lastDate}. Archive coverage may be incomplete.</p>}<ArchiveFilters date={filters.date} draw={filters.draw} />
+    {archive.error ? <p className="state state-error">The archive could not be loaded. Please try again later.</p> : !data?.draws.length ? <p className="state">No published TOTO draws match these filters. Historical backfill may still be in progress.</p> : <>{data.draws.map(({ draw, rows }) => <article className="data-panel archive-draw" key={draw.id}><DrawHeading draw={draw} gamePath="toto" /><TotoResults rows={rows} /></article>)}<Pagination page={data.page} pageSize={data.pageSize} count={data.count} params={filters} /></>}
+  </div>;
 }
