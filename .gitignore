@@ -7,3 +7,8 @@ out
 .vercel
 *.log
 .DS_Store
+
+# PR tooling does not support binary screenshot assets.
+screenshots/**/*.png
+screenshots/**/*.jpg
+screenshots/**/*.jpeg
