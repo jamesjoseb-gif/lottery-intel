@@ -41,7 +41,7 @@ test("fetches every page from the published 4D view through the api_public profi
     const result = await fetchPublishedRows(async (url, options) => {
       const parsedUrl = new URL(url);
       assert.equal(parsedUrl.origin + parsedUrl.pathname, "https://example.supabase.co/rest/v1/published_fourd_results");
-      assert.equal(parsedUrl.searchParams.get("select"), "draw_id,draw_no,prize_type,position,winning_number");
+      assert.equal(parsedUrl.searchParams.get("select"), "draw_id,draw_no,draw_date,prize_type,position,winning_number");
       assert.equal(parsedUrl.searchParams.get("order"), "draw_id,prize_type,position");
       assert.equal(parsedUrl.searchParams.get("limit"), "1000");
       assert.equal(parsedUrl.searchParams.get("offset"), expectedOffsets[request]);

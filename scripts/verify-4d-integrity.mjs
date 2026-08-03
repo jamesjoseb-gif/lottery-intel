@@ -41,11 +41,13 @@ export async function fetchPublishedRows(fetchImpl = fetch) {
 
   while (true) {
     const query = new URLSearchParams({
-      select: "draw_id,draw_no,prize_type,position,winning_number",
+      select: "draw_id,draw_no,draw_date,prize_type,position,winning_number",
       order: "draw_id,prize_type,position",
       limit: String(pageSize),
       offset: String(rows.length),
     });
+    if (process.env.VERIFY_FROM) query.set("draw_date", `gte.${process.env.VERIFY_FROM}`);
+    if (process.env.VERIFY_TO) query.append("draw_date", `lte.${process.env.VERIFY_TO}`);
     const response = await fetchImpl(`${base}/rest/v1/published_fourd_results?${query}`, {
       headers: { apikey: key, authorization: `Bearer ${key}`, "Accept-Profile": "api_public" },
     });
@@ -62,6 +64,11 @@ export async function fetchPublishedRows(fetchImpl = fetch) {
 
 export async function run() {
   const result = verifyFourDIntegrity(await fetchPublishedRows());
+  const expected = process.env.VERIFY_EXPECTED_DRAWS;
+  if (expected && result.drawsChecked !== Number(expected)) {
+    result.ok = false;
+    result.errors.push(`Expected ${expected} published draw(s) in the verification range, found ${result.drawsChecked}.`);
+  }
   console.log(JSON.stringify(result, null, 2));
   if (!result.ok) process.exitCode = 1;
   return result;
