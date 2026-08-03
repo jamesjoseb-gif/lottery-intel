@@ -36,11 +36,28 @@ export async function fetchPublishedRows(fetchImpl = fetch) {
   const base = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!base || !key) throw new Error("Set SUPABASE_URL and a Supabase API key before verifying.");
-  const response = await fetchImpl(`${base}/rest/v1/published_fourd_results?select=draw_id,draw_no,prize_type,position,winning_number`, {
-    headers: { apikey: key, authorization: `Bearer ${key}`, "Accept-Profile": "api_public" },
-  });
-  if (!response.ok) throw new Error(`Supabase returned ${response.status}: ${await response.text()}`);
-  return response.json();
+  const rows = [];
+  const pageSize = 1_000;
+
+  while (true) {
+    const query = new URLSearchParams({
+      select: "draw_id,draw_no,prize_type,position,winning_number",
+      order: "draw_id,prize_type,position",
+      limit: String(pageSize),
+      offset: String(rows.length),
+    });
+    const response = await fetchImpl(`${base}/rest/v1/published_fourd_results?${query}`, {
+      headers: { apikey: key, authorization: `Bearer ${key}`, "Accept-Profile": "api_public" },
+    });
+    if (!response.ok) throw new Error(`Supabase returned ${response.status}: ${await response.text()}`);
+
+    const page = await response.json();
+    rows.push(...page);
+
+    // PostgREST may return fewer rows than the requested limit when its server-side
+    // max-rows setting is lower, so only an empty page proves that pagination ended.
+    if (page.length === 0) return rows;
+  }
 }
 
 export async function run() {

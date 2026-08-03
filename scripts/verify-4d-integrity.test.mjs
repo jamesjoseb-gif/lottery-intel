@@ -27,24 +27,33 @@ test("reports missing rows, duplicate positions, and malformed numbers", () => {
   assert.match(result.errors.join("\n"), /expected 23|positions|invalid number/);
 });
 
-test("fetches only the published 4D view through the api_public profile", async () => {
+test("fetches every page from the published 4D view through the api_public profile", async () => {
   const previousUrl = process.env.SUPABASE_URL;
   const previousKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   process.env.SUPABASE_URL = "https://example.supabase.co";
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
 
   try {
-    const rows = validRows();
+    const rows = Array.from({ length: 107 }, (_, index) => ({ draw_id: `draw-${index}` }));
+    const pages = [rows.slice(0, 100), rows.slice(100), []];
+    const expectedOffsets = ["0", "100", "107"];
+    let request = 0;
     const result = await fetchPublishedRows(async (url, options) => {
-      assert.equal(url, "https://example.supabase.co/rest/v1/published_fourd_results?select=draw_id,draw_no,prize_type,position,winning_number");
+      const parsedUrl = new URL(url);
+      assert.equal(parsedUrl.origin + parsedUrl.pathname, "https://example.supabase.co/rest/v1/published_fourd_results");
+      assert.equal(parsedUrl.searchParams.get("select"), "draw_id,draw_no,prize_type,position,winning_number");
+      assert.equal(parsedUrl.searchParams.get("order"), "draw_id,prize_type,position");
+      assert.equal(parsedUrl.searchParams.get("limit"), "1000");
+      assert.equal(parsedUrl.searchParams.get("offset"), expectedOffsets[request]);
       assert.deepEqual(options.headers, {
         apikey: "service-role-key",
         authorization: "Bearer service-role-key",
         "Accept-Profile": "api_public",
       });
-      return { ok: true, json: async () => rows };
+      return { ok: true, json: async () => pages[request++] };
     });
-    assert.equal(result, rows);
+    assert.deepEqual(result, rows);
+    assert.equal(request, 3);
   } finally {
     if (previousUrl === undefined) delete process.env.SUPABASE_URL;
     else process.env.SUPABASE_URL = previousUrl;
