@@ -595,14 +595,7 @@ export async function run() {
         console.log(JSON.stringify({ event: "draw_cancelled", drawNo: candidate.drawNo }));
         continue;
       }
-      let draw;
-      try {
-        draw = await fetchCandidate(candidate);
-      } catch (error) {
-        failures.push({ drawNo: candidate.drawNo, error: error instanceof Error ? error.message : String(error) });
-        console.error(JSON.stringify({ event: "draw_failed", ...failures.at(-1) }));
-        continue;
-      }
+      const draw = await fetchCandidate(candidate);
 
       if (draw.drawDate < from || draw.drawDate > to) continue;
 

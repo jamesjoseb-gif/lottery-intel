@@ -13,7 +13,7 @@ The supported start is nevertheless pinned to the earliest official page, 31 May
 1. Review and merge the backfill PR, then apply `20260802000300_enable_fourd_historical_backfill.sql` to production.
 2. Confirm Actions secrets `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` and take a database backup/PITR bookmark.
 3. Run the verification SQL below and retain its output as the pre-import baseline (expected current facts: 316 draws and 7,268 rows, 27 July 2024 through 1 August 2026).
-4. Dispatch only one batch at a time. The workflow concurrency lock prevents overlapping 4D writers. Start with 2006, inspect it, then proceed chronologically. Do not dispatch the whole 20-year range: the importer rejects ranges over 370 days.
+4. Dispatch the historical workflow once. It splits the requested range into calendar-year batches, verifies each batch before starting the next, and stops on the first error. The workflow concurrency lock prevents overlapping 4D writers.
 
 ## Reviewed batches
 
@@ -47,7 +47,11 @@ The final expected state is 3,098 published draws and 71,254 rows. Given the sta
 
 ## Actions procedure
 
-For each table row above: open **Actions → Import 4D results → Run workflow**, select `main`, enter `From` and `To`, and dispatch. Save the run URL and emitted `import_run` identifier. Confirm `import_complete`, the expected `drawsFound`, and zero failures. The job retries transient HTTP failures, checkpoints its heartbeat/summary after each draw, and runs the full published-integrity verifier. A stopped or failed job is recovered by rerunning the identical date range: committed draws are checksum no-ops and the first incomplete draw is safely retried. Any “already published with different contents,” identity mismatch, parse failure, or unexpected count is a hard stop for human review.
+Open **Actions → Import 4D results → Run workflow** on `main`. The inputs default to `2008-01-01` through `2024-07-26`. Leave **Resume year** blank for the full range. The job runs one calendar year at a time (clamping the first and last years to the requested dates), imports that year, and verifies both its 23-row structure and that the published draw count equals the importer's discovered count before continuing. Any import, source identity, checksum, count, or verification error stops the job immediately. The final Actions step summary records attempted and completed years, draws found, imported and unchanged, and failures.
+
+The workflow has a single `import-4d` concurrency group with cancellation disabled, so a second dispatch waits rather than overlapping a writer. The database RPC remains checksum-idempotent: identical published draws are reported unchanged, while different contents are rejected.
+
+To resume after investigating a failed year, dispatch the same original **From** and **To** values and set **Resume year** to the failed year. This skips earlier completed years, safely replays that year, and then continues chronologically. Do not resume from a later year unless the failed year has been independently reconciled and verified.
 
 ## Verification SQL
 

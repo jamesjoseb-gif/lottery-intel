@@ -4,12 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       from:
-        description: "Inclusive start date (YYYY-MM-DD; max 370 days)"
+        description: "Inclusive start date (YYYY-MM-DD)"
         required: true
+        default: "2008-01-01"
         type: string
       to:
-        description: "Inclusive end date (YYYY-MM-DD; max 370 days)"
+        description: "Inclusive end date (YYYY-MM-DD)"
         required: true
+        default: "2024-07-26"
+        type: string
+      resume_year:
+        description: "Optional year to resume from (YYYY); earlier years are skipped"
+        required: false
         type: string
 
 permissions:
@@ -24,8 +30,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
-      IMPORT_FROM: ${{ inputs.from }}
-      IMPORT_TO: ${{ inputs.to }}
+      BACKFILL_FROM: ${{ inputs.from }}
+      BACKFILL_TO: ${{ inputs.to }}
+      RESUME_YEAR: ${{ inputs.resume_year }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
@@ -44,8 +51,5 @@ jobs:
       - name: Test importer and integrity rules
         run: npm test
 
-      - name: Import 4D results
-        run: npm run import:4d
-
-      - name: Verify all published 4D draws
-        run: npm run verify:4d
+      - name: Import and verify yearly batches
+        run: npm run backfill:4d
