@@ -1,4 +1,6 @@
 -- Apply separately through the normal Supabase migration process. This migration does not alter result data.
+-- Anonymous Supabase users receive the authenticated role, so these policies cover
+-- both anonymous V1 sessions and future registered accounts without special access.
 create table public.user_favourite_numbers (
   user_id uuid not null references auth.users(id) on delete cascade,
   number text not null check (number ~ '^[0-9]{4}$'),
