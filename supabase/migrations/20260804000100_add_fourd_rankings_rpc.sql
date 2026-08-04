@@ -81,17 +81,17 @@ aggregated as (
 ),
 scored as (
   select aggregated.*,
-    (current_date - last_appearance)::integer as days_since_last_appearance,
-    case when average_historical_gap > 0
-      then (current_date - last_appearance)::double precision / average_historical_gap
+    (current_date - aggregated.last_appearance)::integer as days_since_last_appearance,
+    case when aggregated.average_historical_gap > 0
+      then (current_date - aggregated.last_appearance)::double precision / aggregated.average_historical_gap
       else null end as current_gap_versus_average,
     least(100, greatest(0,
-      coalesce(round(least(1, (total_appearances::numeric / nullif(archive.total::numeric / 10000, 0)) / 2) * 40), 0)::integer
-      + case when current_date - last_appearance <= 30 then 30 when current_date - last_appearance <= 90 then 25
-          when current_date - last_appearance <= 180 then 20 when current_date - last_appearance <= 365 then 15
-          when current_date - last_appearance <= 730 then 8 else 0 end
-      + coalesce(round(least(1, (last_12::numeric / nullif(archive.last_12::numeric / 10000, 0)) / 2) * 20), 0)::integer
-      + coalesce(round(least(1, (last_24::numeric / nullif(archive.last_24::numeric / 10000, 0)) / 2) * 10), 0)::integer
+      coalesce(round(least(1, (aggregated.total_appearances::numeric / nullif(archive.total::numeric / 10000, 0)) / 2) * 40), 0)::integer
+      + case when current_date - aggregated.last_appearance <= 30 then 30 when current_date - aggregated.last_appearance <= 90 then 25
+          when current_date - aggregated.last_appearance <= 180 then 20 when current_date - aggregated.last_appearance <= 365 then 15
+          when current_date - aggregated.last_appearance <= 730 then 8 else 0 end
+      + coalesce(round(least(1, (aggregated.last_12::numeric / nullif(archive.last_12::numeric / 10000, 0)) / 2) * 20), 0)::integer
+      + coalesce(round(least(1, (aggregated.last_24::numeric / nullif(archive.last_24::numeric / 10000, 0)) / 2) * 10), 0)::integer
     ))::integer as historical_activity_score,
     archive.total as result_row_count
   from aggregated cross join archive
