@@ -51,11 +51,24 @@ aggregated as (
   select
     number,
     count(*)::bigint as total_appearances,
-    count(*) filter (where parameters.period = 'all' or draw_date >= current_date - parameters.period::integer)::bigint as period_appearances,
+    count(*) filter (
+      where parameters.period = 'all'
+        or draw_date >= current_date - (
+          case parameters.period
+            when '30' then 30
+            when '90' then 90
+            when '365' then 365
+            else 0
+          end
+        )
+    )::bigint as period_appearances,
     count(*) filter (where draw_date >= current_date - 365)::bigint as last_12,
     count(*) filter (where draw_date >= current_date - 730)::bigint as last_24,
     max(draw_date) as last_appearance,
-    round(avg(draw_date - previous_date)) filter (where previous_date is not null)::integer as average_historical_gap,
+    round(
+      avg(draw_date - previous_date)
+        filter (where previous_date is not null)
+    )::integer as average_historical_gap,
     (array_agg(prize_type order by prize_count desc,
       case prize_type when 'first' then 1 when 'second' then 2 when 'third' then 3 when 'starter' then 4 else 5 end))[1] as most_common_prize_type
   from (
