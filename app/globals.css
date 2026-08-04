@@ -319,6 +319,9 @@ a { color: inherit; text-decoration: none; }
 .favourite-button[aria-pressed="true"] { background: var(--sky); }
 .favourite-button:disabled { opacity: .6; }
 .favourite-note { max-width: 220px; color: var(--muted); font-size: 14px; }
+.favourite-control { display: grid; justify-items: end; gap: 7px; }
+.favourite-message { margin: 0; color: #166534; font-size: 14px; }
+.favourite-message-error { max-width: 330px; color: #9f1239; text-align: right; }
 .section-title { margin: 34px 0 0; }
 .history-summary { grid-template-columns: repeat(4, 1fr); }
 .history-summary .metric strong { font-size: 22px; }
@@ -337,6 +340,30 @@ a { color: inherit; text-decoration: none; }
 .related-numbers a { padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; letter-spacing: .08em; }
 @media (max-width: 900px) { .history-summary, .prize-distribution { grid-template-columns: repeat(2, 1fr); } .breakdown-grid { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .number-title-row { align-items: flex-start; flex-direction: column; } .history-summary, .prize-distribution { grid-template-columns: 1fr; } .number-nav { font-size: 14px; } }
+
+/* Favourite number dashboard */
+.favourites-page > .notice { margin: 24px 0; }
+.favourites-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.favourite-card { position: relative; padding: 24px; border: 1px solid var(--line); border-radius: 18px; background: #fff; box-shadow: 0 8px 25px rgba(7,26,54,.05); }
+.favourite-card-heading { display: flex; justify-content: space-between; gap: 20px; }
+.favourite-card-heading span { color: var(--muted); font-size: 13px; }
+.favourite-card h2 { margin: 5px 0 0; color: var(--blue); font-size: 34px; letter-spacing: .1em; }
+.favourite-score { display: grid; grid-template-columns: auto auto; align-items: baseline; min-width: 105px; }
+.favourite-score strong { font-size: 29px; }
+.favourite-score small { grid-column: 1 / -1; color: var(--muted); }
+.favourite-card dl { margin: 22px 0; }
+.favourite-card dl div { display: flex; justify-content: space-between; gap: 18px; padding: 11px 0; border-top: 1px solid var(--line); }
+.favourite-card dt { color: var(--muted); }
+.favourite-card dd { margin: 0; text-align: right; font-weight: 700; }
+.favourite-actions { display: flex; justify-content: space-between; align-items: center; gap: 14px; }
+.favourite-actions a { color: var(--blue); font-weight: 700; }
+.favourite-actions button, .remove-confirmation button, .state-error button { padding: 9px 12px; border: 1px solid var(--line); border-radius: 9px; background: #fff; cursor: pointer; font-weight: 700; }
+.remove-confirmation { margin-top: 15px; padding: 14px; border-radius: 11px; background: #fff1f2; }
+.remove-confirmation p { margin: 0 0 10px; color: #9f1239; font-weight: 700; }
+.remove-confirmation button { margin-right: 8px; }
+.favourites-loading { margin-top: 24px; }
+.history-empty a { display: inline-block; margin-top: 18px; color: var(--blue); font-weight: 700; }
+@media (max-width: 760px) { .favourites-grid { grid-template-columns: 1fr; } .favourite-control { justify-items: start; } .favourite-message-error { text-align: left; } }
 
 /* Searchable, filtered Number History */
 .number-history-page > .notice { margin-top: 28px; }

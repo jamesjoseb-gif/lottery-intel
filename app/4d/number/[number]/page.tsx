@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SearchBox } from "@/components/SearchBox";
+import { FavouriteNumberButton } from "@/components/FavouriteNumberButton";
 import { buildNumberHistoryStats } from "@/lib/fourd-number";
 import { buildNumberIntelligence } from "@/lib/number-intelligence";
 import { formatDrawDate, getNumberHistory } from "@/lib/results";
@@ -67,7 +68,7 @@ export default async function NumberHistoryPage({ params, searchParams }: Props)
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
     <nav className="number-nav" aria-label="Breadcrumb"><Link href="/">Home</Link><span> / </span><Link href="/4d">4D archive</Link><span> / {number}</span></nav>
     <span className="eyebrow">Number history</span>
-    <h1>{number} 4D winning history</h1>
+    <div className="number-title-row"><h1>{number} 4D winning history</h1><FavouriteNumberButton number={number} /></div>
     <p className="section-copy">Search the production results archive for every exact appearance, newest first.</p>
     <SearchBox />
     <p className="notice">Historical frequency does not predict a future result. Lottery draws are games of chance.</p>
