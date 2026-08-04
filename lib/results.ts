@@ -6,7 +6,7 @@ export { groupRowsByDraw, groupSweepTiers, normalizePage } from "@/lib/archive-d
 export type GameCode = "4d" | "toto" | "sweep";
 export type DrawInfo = { draw_id: string; draw_no: string; draw_date: string; published_at: string };
 export type PublishedDraw = { id: string; game_code: GameCode; draw_no: string; draw_date: string; published_at: string };
-export type FourDRow = DrawInfo & { prize_type: "first" | "second" | "third" | "starter" | "consolation"; position: number; winning_number: string };
+export type FourDRow = DrawInfo & { prize_type: "first" | "second" | "third" | "starter" | "consolation"; position: number | null; winning_number: string };
 export type TotoRow = DrawInfo & { number_kind: "main" | "additional"; position: number; winning_number: number };
 export type SweepRow = DrawInfo & { tier_code: string; source_label: string; position: number; ticket_number: string; series: string | null; entry_suffix: string | null; source_display_value: string };
 export type FourDStatistic = { winning_number: string; appearances: number; first_prizes: number; second_prizes: number; third_prizes: number; starter_prizes: number; consolation_prizes: number; last_seen_on: string };
@@ -76,7 +76,29 @@ async function getLatestRows<T>(game: GameCode): Promise<QueryResult<T[]>> { con
 export function getLatestFourD() { return getLatestRows<FourDRow>("4d"); }
 export function getLatestToto() { return getLatestRows<TotoRow>("toto"); }
 export function getLatestSweep() { return getLatestRows<SweepRow>("sweep"); }
-export function getNumberHistory(number: string) { return safely<FourDRow[]>(() => publicView("published_fourd_results").select("*").eq("winning_number", number).order("draw_date", { ascending: false }), []); }
+export type NumberHistory = { appearances: FourDRow[]; rows: FourDRow[]; count: number; page: number; pageSize: number };
+
+/** Fetch an exact number's complete history for statistics and a filtered page for display. */
+export async function getNumberHistory(number: string, filters: { year?: string; prize?: string; page?: string } = {}, pageSize = 20): Promise<QueryResult<NumberHistory>> {
+  const page = normalizePage(filters.page);
+  try {
+    const fields = "draw_id,draw_date,draw_no,prize_type,position,winning_number,published_at";
+    const allQuery = publicView("published_fourd_results").select(fields).eq("winning_number", number).order("draw_date", { ascending: false }).order("draw_no", { ascending: false });
+    let pageQuery = publicView("published_fourd_results").select(fields, { count: "exact" }).eq("winning_number", number);
+    if (/^\d{4}$/.test(filters.year ?? "")) pageQuery = pageQuery.gte("draw_date", `${filters.year}-01-01`).lte("draw_date", `${filters.year}-12-31`);
+    if (["first", "second", "third", "starter", "consolation"].includes(filters.prize ?? "")) pageQuery = pageQuery.eq("prize_type", filters.prize!);
+    const from = (page - 1) * pageSize;
+    const [allResult, pageResult] = await Promise.all([
+      allQuery,
+      pageQuery.order("draw_date", { ascending: false }).order("draw_no", { ascending: false }).range(from, from + pageSize - 1),
+    ]);
+    const error = allResult.error ?? pageResult.error;
+    if (error) return { data: null, error: error.message };
+    return { data: { appearances: (allResult.data ?? []) as FourDRow[], rows: (pageResult.data ?? []) as FourDRow[], count: pageResult.count ?? 0, page, pageSize }, error: null };
+  } catch (error) {
+    return { data: null, error: error instanceof Error ? error.message : "Unable to load number history." };
+  }
+}
 export function getFourDStatistics(limit = 50) { return safely<FourDStatistic[]>(() => publicView("fourd_number_statistics").select("*").order("appearances", { ascending: false }).order("last_seen_on", { ascending: false }).order("winning_number").limit(limit), []); }
 export async function getRecentFourDDraws(limit = 5): Promise<QueryResult<FourDDrawSummary[]>> { const result = await safely<FourDRow[]>(() => publicView("published_fourd_results").select("*").order("draw_date", { ascending: false }).order("draw_no", { ascending: false }).order("position").limit(Math.max(limit, 1) * 23), []); if (!result.data) return result; return { data: summarizeFourDDraws(result.data).slice(0, limit), error: null }; }
 export async function getFourDCoverage() { const coverage = await getCoverage("4d"); return coverage.data ? { data: { firstDate: coverage.data.firstDate, lastDate: coverage.data.lastDate }, error: null as null } : coverage; }

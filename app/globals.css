@@ -337,3 +337,26 @@ a { color: inherit; text-decoration: none; }
 .related-numbers a { padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; letter-spacing: .08em; }
 @media (max-width: 900px) { .history-summary, .prize-distribution { grid-template-columns: repeat(2, 1fr); } .breakdown-grid { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .number-title-row { align-items: flex-start; flex-direction: column; } .history-summary, .prize-distribution { grid-template-columns: 1fr; } .number-nav { font-size: 14px; } }
+
+/* Searchable, filtered Number History */
+.number-history-page > .notice { margin-top: 28px; }
+.number-history-page > .number-nav { justify-content: flex-start; color: var(--muted); }
+.number-stat-grid { grid-template-columns: repeat(4, 1fr); }
+.number-stat-grid .metric strong { font-size: 22px; }
+.year-wins h2, .history-heading h2 { margin: 0; }
+.year-win-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 10px; margin-top: 18px; }
+.year-win-list div { display: flex; justify-content: space-between; padding: 13px 14px; border-radius: 10px; background: var(--bg); }
+.year-win-list span, .history-heading p { color: var(--muted); }
+.history-heading p { margin: 5px 0 0; }
+.history-filters { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(180px, 1fr) auto auto; align-items: end; gap: 12px; margin: 22px 0; padding: 16px; border-radius: 14px; background: var(--bg); }
+.history-filters label { display: grid; gap: 6px; color: var(--muted); font-size: 13px; font-weight: 700; }
+.history-filters select { width: 100%; padding: 11px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--navy); }
+.history-filters button, .history-filters a { min-height: 44px; padding: 11px 16px; border-radius: 9px; text-align: center; font-weight: 700; }
+.history-filters button { border: 1px solid var(--blue); background: var(--blue); color: #fff; cursor: pointer; }
+.history-filters a { border: 1px solid var(--line); background: #fff; }
+.history-number { color: var(--blue); letter-spacing: .08em; }
+.history-empty { padding: 44px 20px; border: 1px dashed var(--line); border-radius: 13px; background: var(--bg); text-align: center; }
+.history-empty strong { font-size: 20px; }
+.history-empty p { margin-bottom: 0; color: var(--muted); }
+@media (max-width: 900px) { .number-stat-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { .number-stat-grid, .history-filters { grid-template-columns: 1fr; } .number-history-page .search-box { margin-bottom: 24px; } }
