@@ -76,25 +76,30 @@ async function getLatestRows<T>(game: GameCode): Promise<QueryResult<T[]>> { con
 export function getLatestFourD() { return getLatestRows<FourDRow>("4d"); }
 export function getLatestToto() { return getLatestRows<TotoRow>("toto"); }
 export function getLatestSweep() { return getLatestRows<SweepRow>("sweep"); }
-export type NumberHistory = { appearances: FourDRow[]; rows: FourDRow[]; count: number; page: number; pageSize: number };
+export type NumberHistory = { appearances: FourDRow[]; rows: FourDRow[]; count: number; page: number; pageSize: number; archiveCounts: { total: number; last12Months: number; last24Months: number } };
 
 /** Fetch an exact number's complete history for statistics and a filtered page for display. */
 export async function getNumberHistory(number: string, filters: { year?: string; prize?: string; page?: string } = {}, pageSize = 20): Promise<QueryResult<NumberHistory>> {
   const page = normalizePage(filters.page);
   try {
     const fields = "draw_id,draw_date,draw_no,prize_type,position,winning_number,published_at";
+    const now = new Date();
+    const cutoff = (months: number) => { const date = new Date(now); date.setUTCMonth(date.getUTCMonth() - months); return date.toISOString().slice(0, 10); };
     const allQuery = publicView("published_fourd_results").select(fields).eq("winning_number", number).order("draw_date", { ascending: false }).order("draw_no", { ascending: false });
     let pageQuery = publicView("published_fourd_results").select(fields, { count: "exact" }).eq("winning_number", number);
     if (/^\d{4}$/.test(filters.year ?? "")) pageQuery = pageQuery.gte("draw_date", `${filters.year}-01-01`).lte("draw_date", `${filters.year}-12-31`);
     if (["first", "second", "third", "starter", "consolation"].includes(filters.prize ?? "")) pageQuery = pageQuery.eq("prize_type", filters.prize!);
     const from = (page - 1) * pageSize;
-    const [allResult, pageResult] = await Promise.all([
+    const [allResult, pageResult, totalResult, recent12Result, recent24Result] = await Promise.all([
       allQuery,
       pageQuery.order("draw_date", { ascending: false }).order("draw_no", { ascending: false }).range(from, from + pageSize - 1),
+      publicView("published_fourd_results").select("draw_id", { count: "exact", head: true }),
+      publicView("published_fourd_results").select("draw_id", { count: "exact", head: true }).gte("draw_date", cutoff(12)),
+      publicView("published_fourd_results").select("draw_id", { count: "exact", head: true }).gte("draw_date", cutoff(24)),
     ]);
-    const error = allResult.error ?? pageResult.error;
+    const error = allResult.error ?? pageResult.error ?? totalResult.error ?? recent12Result.error ?? recent24Result.error;
     if (error) return { data: null, error: error.message };
-    return { data: { appearances: (allResult.data ?? []) as FourDRow[], rows: (pageResult.data ?? []) as FourDRow[], count: pageResult.count ?? 0, page, pageSize }, error: null };
+    return { data: { appearances: (allResult.data ?? []) as FourDRow[], rows: (pageResult.data ?? []) as FourDRow[], count: pageResult.count ?? 0, page, pageSize, archiveCounts: { total: totalResult.count ?? 0, last12Months: recent12Result.count ?? 0, last24Months: recent24Result.count ?? 0 } }, error: null };
   } catch (error) {
     return { data: null, error: error instanceof Error ? error.message : "Unable to load number history." };
   }

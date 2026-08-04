@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SearchBox } from "@/components/SearchBox";
 import { buildNumberHistoryStats } from "@/lib/fourd-number";
+import { buildNumberIntelligence } from "@/lib/number-intelligence";
 import { formatDrawDate, getNumberHistory } from "@/lib/results";
 
 type Props = {
@@ -17,8 +18,12 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { number } = await params;
   if (!/^\d{4}$/.test(number)) return { title: "4D Number History" };
-  const title = `${number} 4D Number History & Winning Results`;
-  const description = `Find every published Singapore 4D win for ${number}, with prize counts, last appearance, longest gap and wins by year.`;
+  const result = await getNumberHistory(number);
+  const appearances = result.data?.appearances.length;
+  const title = `${number} 4D Number History & Activity Score`;
+  const description = appearances === undefined
+    ? `Explore the verified Singapore 4D history and historical activity summary for ${number}.`
+    : `${number} has ${appearances} published 4D appearances. Explore its historical activity score, recent trend, gaps and prize history.`;
   return {
     title,
     description,
@@ -48,10 +53,15 @@ export default async function NumberHistoryPage({ params, searchParams }: Props)
   const appearances = history?.appearances ?? [];
   const rows = history?.rows ?? [];
   const stats = buildNumberHistoryStats(appearances);
+  const intelligence = history ? buildNumberIntelligence(appearances, {
+    totalArchiveAppearances: history.archiveCounts.total,
+    archiveAppearancesLast12Months: history.archiveCounts.last12Months,
+    archiveAppearancesLast24Months: history.archiveCounts.last24Months,
+  }) : null;
   const years = stats.years.map(([year]) => year);
   const totalPages = Math.max(1, Math.ceil((history?.count ?? 0) / (history?.pageSize ?? 20)));
   const position = (value: number | null) => value === null ? "—" : String(value);
-  const jsonLd = { "@context": "https://schema.org", "@type": "Dataset", name: `${number} Singapore 4D number history`, description: `Every published historical appearance of 4D number ${number}.`, temporalCoverage: stats.firstSeen && stats.lastSeen ? `${stats.firstSeen}/${stats.lastSeen}` : undefined };
+  const jsonLd = { "@context": "https://schema.org", "@type": "Dataset", name: `${number} Singapore 4D number history and intelligence`, description: `Verified historical appearances and deterministic activity statistics for 4D number ${number}.`, temporalCoverage: stats.firstSeen && stats.lastSeen ? `${stats.firstSeen}/${stats.lastSeen}` : undefined, variableMeasured: intelligence ? ["Historical Activity Score", "Appearance frequency", "Days since last appearance", "Average gap", "Recent appearances"] : undefined };
 
   return <div className="container page-shell number-history-page">
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
@@ -63,6 +73,25 @@ export default async function NumberHistoryPage({ params, searchParams }: Props)
     <p className="notice">Historical frequency does not predict a future result. Lottery draws are games of chance.</p>
 
     {result.error ? <p className="state state-error">Number history could not be loaded. Please try again later.<small>{result.error}</small></p> : <>
+      <section className="intelligence-panel" aria-labelledby="intelligence-title">
+        <div className="intelligence-heading"><div><span className="eyebrow">Verified archive analysis</span><h2 id="intelligence-title">Number Intelligence</h2></div>
+          {intelligence && <div className="activity-score" aria-label={`Historical Activity Score ${intelligence.score.value} out of 100, ${intelligence.score.label}`}><strong>{intelligence.score.value}</strong><span>/ 100</span><b>{intelligence.score.label}</b></div>}
+        </div>
+        {!intelligence || intelligence.totalAppearances === 0 ? <div className="history-empty"><strong>No intelligence summary yet</strong><p>This number has no exact appearances in the published archive, so gap and prize insights are unavailable. Its historical activity score is 0.</p></div> : <>
+          <div className="intelligence-grid">
+            <div><span>Frequency vs average</span><strong>{intelligence.frequencyComparedWithAverage.toFixed(2)}×</strong><small>{(intelligence.appearanceRate * 100).toFixed(3)}% of all archived results</small></div>
+            <div><span>Days since last appearance</span><strong>{intelligence.daysSinceLastAppearance?.toLocaleString() ?? "—"}</strong></div>
+            <div><span>Average gap</span><strong>{intelligence.averageGap === null ? "—" : `${intelligence.averageGap.toLocaleString()} days`}</strong><small>Range: {intelligence.shortestGap}–{intelligence.longestGap} days</small></div>
+            <div><span>Recent appearances</span><strong>{intelligence.appearancesLast12Months} / 12 months</strong><small>{intelligence.appearancesLast24Months} in 24 months</small></div>
+            <div><span>Most common prize</span><strong>{intelligence.mostCommonPrizeType ? prizeLabels[intelligence.mostCommonPrizeType] : "—"}</strong></div>
+            <div><span>Active years</span><strong>{intelligence.activeYears.length}</strong><small>{intelligence.activeYears.join(", ")}</small></div>
+          </div>
+          <p className="trend-summary"><strong>{intelligence.recentTrend} trend.</strong> {intelligence.trendSummary}</p>
+          <details className="score-explanation"><summary>How the historical activity score works</summary><p>{intelligence.score.explanation} Frequency contributes up to 40 points by comparing all appearances with the average across 10,000 exact numbers. Recency contributes up to 30 points using the time since the latest appearance. Activity in the last 12 and 24 months contributes up to 30 points compared with archive-wide averages.</p></details>
+        </>}
+        <p className="responsible-message">Historical activity describes past results only. It does not predict future results or increase the chance of any number being drawn.</p>
+      </section>
+
       <section aria-labelledby="summary-title"><h2 className="section-title" id="summary-title">Statistics for {number}</h2>
         <div className="metric-grid number-stat-grid">
           <div className="metric"><span>Total wins</span><strong>{stats.total}</strong></div>
