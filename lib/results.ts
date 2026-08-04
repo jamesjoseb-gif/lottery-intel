@@ -1,6 +1,8 @@
 import { createServerClient } from "@/lib/supabase/server";
 import { summarizeFourDDraws, type DrawSummary } from "@/lib/homepage-data";
 import { groupRowsByDraw, normalizePage } from "@/lib/archive-data";
+import { unstable_cache } from "next/cache";
+import type { FourDRankingAggregate } from "@/lib/fourd-rankings";
 export { groupRowsByDraw, groupSweepTiers, normalizePage } from "@/lib/archive-data";
 
 export type GameCode = "4d" | "toto" | "sweep";
@@ -105,6 +107,17 @@ export async function getNumberHistory(number: string, filters: { year?: string;
   }
 }
 export function getFourDStatistics(limit = 50) { return safely<FourDStatistic[]>(() => publicView("fourd_number_statistics").select("*").order("appearances", { ascending: false }).order("last_seen_on", { ascending: false }).order("winning_number").limit(limit), []); }
+const getCachedFourDRankings = unstable_cache(
+  () => safely<FourDRankingAggregate[]>(() => {
+    const client = createServerClient();
+    if (!client) throw new Error("Supabase public credentials are unavailable.");
+    return client.schema("api_public").rpc("get_fourd_rankings");
+  }, []),
+  ["fourd-rankings-v1"],
+  { revalidate: 3600, tags: ["fourd-rankings"] },
+);
+/** A single compact RPC, shared across ranking tabs and cached for at most one hour. */
+export function getFourDRankings() { return getCachedFourDRankings(); }
 export async function getRecentFourDDraws(limit = 5): Promise<QueryResult<FourDDrawSummary[]>> { const result = await safely<FourDRow[]>(() => publicView("published_fourd_results").select("*").order("draw_date", { ascending: false }).order("draw_no", { ascending: false }).order("position").limit(Math.max(limit, 1) * 23), []); if (!result.data) return result; return { data: summarizeFourDDraws(result.data).slice(0, limit), error: null }; }
 export async function getFourDCoverage() { const coverage = await getCoverage("4d"); return coverage.data ? { data: { firstDate: coverage.data.firstDate, lastDate: coverage.data.lastDate }, error: null as null } : coverage; }
 export function formatDrawDate(date: string) { return new Intl.DateTimeFormat("en-SG", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Singapore" }).format(new Date(`${date}T00:00:00+08:00`)); }
