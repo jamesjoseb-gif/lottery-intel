@@ -273,3 +273,18 @@ Only publication—not staging—makes a record visible. Cross-table constraints
 - Correcting draw identity/date uses a restricted function and collision check. If a supposed draw is actually a different identity, create/merge through an explicit audited procedure rather than rewriting foreign keys ad hoc.
 - Reverting a bad correction creates/publishes another revision (which may copy a previously valid payload with a new provenance decision); do not reactivate silently.
 - Audit and observation retention periods, raw artifact licensing, and whether public users see a correction notice/version timestamp remain unresolved policy questions in [DECISIONS.md](./DECISIONS.md).
+# Lucky Number Finder RPC
+
+Run `supabase/migrations/20260804000200_add_lucky_number_finder_rpc.sql` in the
+Supabase SQL editor (or apply migrations normally) before publishing the Lucky
+Number Finder. It creates only the `api_public.find_lucky_fourd_numbers` function;
+it does not alter result tables or the import pipeline. The RPC performs matching,
+aggregation, scoring, stable sorting, deduplication and the 100-row limit in one
+database request against the current published 4D revisions.
+
+Finder RPC responses are cached by Next.js for up to one hour with the
+`4d-lucky-finder` cache tag. After importing and publishing a result, either allow
+that TTL to expire or call `revalidateTag("4d-lucky-finder")` from the publishing
+workflow for immediate invalidation (and also invalidate the existing
+`4d-rankings` tag). Replacing the SQL function with a migration does not require
+changes to existing imports.
