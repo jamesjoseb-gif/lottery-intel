@@ -1,0 +1,92 @@
+name: Backfill V1 — last 2 years
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: "Inclusive start date (YYYY-MM-DD)"
+        required: true
+        default: "2024-08-16"
+        type: string
+      to:
+        description: "Inclusive end date (YYYY-MM-DD)"
+        required: true
+        default: "2026-08-16"
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/backfill-v1-two-years.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backfill-v1-two-years
+  cancel-in-progress: false
+
+jobs:
+  four-d:
+    name: Backfill and verify 4D
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      BACKFILL_FROM: ${{ inputs.from || '2024-08-16' }}
+      BACKFILL_TO: ${{ inputs.to || '2026-08-16' }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run importer tests
+        run: npm test
+      - name: Import and verify 4D in yearly batches
+        run: npm run backfill:4d
+
+  toto:
+    name: Backfill and verify TOTO
+    needs: four-d
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      IMPORT_FROM: ${{ inputs.from || '2024-08-16' }}
+      IMPORT_TO: ${{ inputs.to || '2026-08-16' }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Import TOTO historical range
+        run: npm run import:toto
+      - name: Verify published TOTO rows
+        run: npm run verify:toto
+
+  sweep:
+    name: Backfill and verify Singapore Sweep
+    needs: toto
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      IMPORT_FROM: ${{ inputs.from || '2024-08-16' }}
+      IMPORT_TO: ${{ inputs.to || '2026-08-16' }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Import Singapore Sweep historical range
+        run: npm run import:sweep
+      - name: Verify latest published Sweep result
+        run: npm run verify:sweep
