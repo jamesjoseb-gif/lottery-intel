@@ -78,6 +78,14 @@ export function getLatestToto() { return getLatestRows<TotoRow>("toto"); }
 export function getLatestSweep() { return getLatestRows<SweepRow>("sweep"); }
 export type NumberHistory = { appearances: FourDRow[]; rows: FourDRow[]; count: number; page: number; pageSize: number; archiveCounts: { total: number; last12Months: number; last24Months: number } };
 
+/** Fetch the published 4D archive fields needed for digit-position analysis. */
+export async function getFourDDigitPositionRows(): Promise<QueryResult<Array<{ winning_number: string; draw_date: string }>>> {
+  return safely<Array<{ winning_number: string; draw_date: string }>>(
+    () => publicView("published_fourd_results").select("winning_number,draw_date").order("draw_date", { ascending: false }).limit(10000),
+    [],
+  );
+}
+
 /** Fetch an exact number's complete history for statistics and a filtered page for display. */
 export async function getNumberHistory(number: string, filters: { year?: string; prize?: string; page?: string } = {}, pageSize = 20): Promise<QueryResult<NumberHistory>> {
   const page = normalizePage(filters.page);
