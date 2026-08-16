@@ -3,9 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SearchBox } from "@/components/SearchBox";
 import { FavouriteNumberButton } from "@/components/FavouriteNumberButton";
+import { buildDigitPositionAnalysis } from "@/lib/digit-position-analysis";
 import { buildNumberHistoryStats } from "@/lib/fourd-number";
 import { buildNumberIntelligence } from "@/lib/number-intelligence";
-import { formatDrawDate, getNumberHistory } from "@/lib/results";
+import { formatDrawDate, getFourDDigitPositionRows, getNumberHistory } from "@/lib/results";
 
 type Props = {
   params: Promise<{ number: string }>;
@@ -13,6 +14,7 @@ type Props = {
 };
 const prizeLabels = { first: "1st Prize", second: "2nd Prize", third: "3rd Prize", starter: "Starter Prize", consolation: "Consolation Prize" } as const;
 const prizes = Object.keys(prizeLabels) as Array<keyof typeof prizeLabels>;
+const positionLabels = ["1st digit", "2nd digit", "3rd digit", "4th digit"] as const;
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +51,10 @@ export default async function NumberHistoryPage({ params, searchParams }: Props)
     year: /^\d{4}$/.test(requested.year ?? "") ? requested.year : undefined,
     prize: prizes.includes(requested.prize as keyof typeof prizeLabels) ? requested.prize : undefined,
   };
-  const result = await getNumberHistory(number, { ...filters, page: requested.page });
+  const [result, positionRowsResult] = await Promise.all([
+    getNumberHistory(number, { ...filters, page: requested.page }),
+    getFourDDigitPositionRows(),
+  ]);
   const history = result.data;
   const appearances = history?.appearances ?? [];
   const rows = history?.rows ?? [];
@@ -59,10 +64,11 @@ export default async function NumberHistoryPage({ params, searchParams }: Props)
     archiveAppearancesLast12Months: history.archiveCounts.last12Months,
     archiveAppearancesLast24Months: history.archiveCounts.last24Months,
   }) : null;
+  const digitPositions = positionRowsResult.data ? buildDigitPositionAnalysis(number, positionRowsResult.data) : [];
   const years = stats.years.map(([year]) => year);
   const totalPages = Math.max(1, Math.ceil((history?.count ?? 0) / (history?.pageSize ?? 20)));
   const position = (value: number | null) => value === null ? "—" : String(value);
-  const jsonLd = { "@context": "https://schema.org", "@type": "Dataset", name: `${number} Singapore 4D number history and intelligence`, description: `Verified historical appearances and deterministic activity statistics for 4D number ${number}.`, temporalCoverage: stats.firstSeen && stats.lastSeen ? `${stats.firstSeen}/${stats.lastSeen}` : undefined, variableMeasured: intelligence ? ["Historical Activity Score", "Appearance frequency", "Days since last appearance", "Average gap", "Recent appearances"] : undefined };
+  const jsonLd = { "@context": "https://schema.org", "@type": "Dataset", name: `${number} Singapore 4D number history and intelligence`, description: `Verified historical appearances and deterministic activity statistics for 4D number ${number}.`, temporalCoverage: stats.firstSeen && stats.lastSeen ? `${stats.firstSeen}/${stats.lastSeen}` : undefined, variableMeasured: intelligence ? ["Historical Activity Score", "Appearance frequency", "Days since last appearance", "Average gap", "Recent appearances", "Digit-position frequency"] : undefined };
 
   return <div className="container page-shell number-history-page">
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
@@ -91,6 +97,21 @@ export default async function NumberHistoryPage({ params, searchParams }: Props)
           <details className="score-explanation"><summary>How the historical activity score works</summary><p>{intelligence.score.explanation} Frequency contributes up to 40 points by comparing all appearances with the average across 10,000 exact numbers. Recency contributes up to 30 points using the time since the latest appearance. Activity in the last 12 and 24 months contributes up to 30 points compared with archive-wide averages.</p></details>
         </>}
         <p className="responsible-message">Historical activity describes past results only. It does not predict future results or increase the chance of any number being drawn.</p>
+      </section>
+
+      <section className="data-panel" aria-labelledby="digit-position-title">
+        <div className="history-heading"><div><span className="eyebrow">Position analysis</span><h2 id="digit-position-title">Digit Position Analysis for {number}</h2><p>How often each digit has appeared in the same position across the published 4D archive, compared with the neutral 10% baseline.</p></div></div>
+        {positionRowsResult.error ? <p className="inline-state">Digit-position analysis is temporarily unavailable.</p> : digitPositions.length ? <div className="digit-position-grid">{digitPositions.map((item) => <article key={item.position} className="digit-position-card">
+          <div className="digit-position-card-heading"><span>{positionLabels[item.position - 1]}</span><strong>{item.digit}</strong></div>
+          <dl>
+            <div><dt>All-history rate</dt><dd>{(item.totalRate * 100).toFixed(2)}%</dd></div>
+            <div><dt>vs 10% baseline</dt><dd>{item.historicalIndex.toFixed(2)}×</dd></div>
+            <div><dt>Last 12 months</dt><dd>{(item.recentRate * 100).toFixed(2)}%</dd></div>
+            <div><dt>Recent vs baseline</dt><dd>{item.recentIndex.toFixed(2)}×</dd></div>
+          </dl>
+          <small>{item.totalCount.toLocaleString()} historical matches; {item.recentCount.toLocaleString()} in the recent 12-month window.</small>
+        </article>)}</div> : <p className="inline-state">No published 4D rows are available for position analysis.</p>}
+        <p className="responsible-message">A digit appearing above or below 10% historically does not change its probability in a future independent draw.</p>
       </section>
 
       <section aria-labelledby="summary-title"><h2 className="section-title" id="summary-title">Statistics for {number}</h2>
