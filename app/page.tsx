@@ -67,11 +67,11 @@ export default async function HomePage() {
           <p className="section-copy">Instead of throwing away your favourite numbers, let Lottery Intel research them. We score the individual numbers and, more importantly, the pair, triple or quadruple relationships inside your intended bet.</p>
           <Link className="primary-link" href="/toto/analyse">Analyse my TOTO numbers →</Link>
         </div>
-        <div className="stats-preview">
-          <article><strong>Research Score</strong><span>Relative historical strength, never a % chance of winning.</span></article>
-          <article><strong>Strongest relationships</strong><span>See which parts of your own ticket have the strongest historical support.</span></article>
-          <article><strong>AI alternatives</strong><span>Compare your selection with research-based substitutes while keeping your favourites.</span></article>
-          <article><strong>Budget recommendation</strong><span>AI may recommend spending less than your stated maximum.</span></article>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:16}}>
+          <Feature title="Research Score" copy="Relative historical strength, never a % chance of winning." />
+          <Feature title="Strongest relationships" copy="See which parts of your own ticket have the strongest historical support." />
+          <Feature title="AI alternatives" copy="Compare your selection with research-based substitutes while keeping your favourites." />
+          <Feature title="Budget recommendation" copy="AI may recommend spending less than your stated maximum." />
         </div>
       </div>
     </div></section>
@@ -96,6 +96,7 @@ export default async function HomePage() {
   </>;
 }
 
+function Feature({title,copy}:{title:string;copy:string}) { return <article style={{padding:"20px 22px",border:"1px solid #c9d8ee",borderRadius:16,background:"#fff",boxShadow:"0 8px 24px rgba(7,26,54,.05)"}}><strong style={{display:"block",color:"#1748c9",fontSize:20,lineHeight:1.2,marginBottom:8}}>{title}</strong><span style={{display:"block",color:"#334155",fontSize:15,lineHeight:1.55}}>{copy}</span></article>; }
 function SafeState({ error = false }: { error?: boolean }) { return <p className={`state${error ? " state-error" : ""}`}>{error ? "Data is temporarily unavailable. Please try again later." : "No published result is available yet."}</p>; }
 function CardHeading({ game, draw }: { game: string; draw?: { draw_no: string; draw_date: string } }) { return <div className="card-top"><span>{game}</span>{draw && <small>Draw {draw.draw_no}<br />{formatDrawDate(draw.draw_date)}</small>}</div>; }
 function Journey({ href, index, name, copy }: { href: string; index: string; name: string; copy: string }) { return <Link href={href}><span>{index}</span><h3>{name}</h3><p>{copy}</p><strong>Start research →</strong></Link>; }
