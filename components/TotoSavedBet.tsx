@@ -1,54 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-export type SavedTotoBet = {
-  id: string;
-  savedAt: string;
-  asOf: string;
-  mode: string;
-  numbers: number[];
-  budget: number;
-  researchScore: number;
-  suggestedDeployment: number;
-  uncommitted: number;
-  evidence: string;
-};
-
-const STORAGE_KEY = "lottery-intel:toto-saved-bets:v1";
-
-function readSaved(): SavedTotoBet[] {
-  if (typeof window === "undefined") return [];
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]") as SavedTotoBet[]; }
-  catch { return []; }
-}
-
-export function SaveTotoBetButton({ bet }: { bet: Omit<SavedTotoBet, "id" | "savedAt"> }) {
-  const [saved, setSaved] = useState(false);
-  function save() {
-    const current = readSaved();
-    const item: SavedTotoBet = { ...bet, id: crypto.randomUUID(), savedAt: new Date().toISOString() };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([item, ...current].slice(0, 100)));
-    setSaved(true);
-  }
-  return <div><button type="button" onClick={save} disabled={saved}>{saved ? "Saved to My TOTO History" : "Save this research"}</button> <Link href="/toto/history">View my history →</Link></div>;
-}
-
-export function TotoSavedHistory() {
-  const [items, setItems] = useState<SavedTotoBet[]>([]);
-  useEffect(() => setItems(readSaved()), []);
-  function remove(id: string) {
-    const next = items.filter((item) => item.id !== id);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    setItems(next);
-  }
-  if (!items.length) return <p className="state">No saved TOTO research yet. Analyse a bet and save it to start building your personal record.</p>;
-  return <div className="recent-grid">{items.map((item) => <article className="recent-card" key={item.id}>
-    <div><h3>{item.mode.toUpperCase()} · {item.researchScore}/100</h3><p>Saved {new Date(item.savedAt).toLocaleString("en-SG")}</p></div>
-    <p><strong>{item.numbers.map((n) => String(n).padStart(2, "0")).join(" · ")}</strong></p>
-    <p>Budget S${item.budget} · Suggested S${item.suggestedDeployment} · Keep S${item.uncommitted}</p>
-    <p>{item.evidence} · data through {item.asOf}</p>
-    <button type="button" onClick={() => remove(item.id)}>Remove</button>
-  </article>)}</div>;
-}
+export type SavedTotoBet = { id:string;savedAt:string;asOf:string;mode:string;numbers:number[];budget:number;researchScore:number;suggestedDeployment:number;uncommitted:number;evidence:string;placed?:boolean };
+export type PublishedTotoDraw={drawNo:string;drawDate:string;main:number[];additional:number|null};
+const STORAGE_KEY="lottery-intel:toto-saved-bets:v1";
+function readSaved():SavedTotoBet[]{if(typeof window==="undefined")return[];try{return JSON.parse(localStorage.getItem(STORAGE_KEY)??"[]")as SavedTotoBet[]}catch{return[]}}
+function persist(items:SavedTotoBet[]){localStorage.setItem(STORAGE_KEY,JSON.stringify(items))}
+export function SaveTotoBetButton({bet}:{bet:Omit<SavedTotoBet,"id"|"savedAt">}){const[saved,setSaved]=useState(false);function save(){const current=readSaved(),item:SavedTotoBet={...bet,id:crypto.randomUUID(),savedAt:new Date().toISOString(),placed:false};persist([item,...current].slice(0,100));setSaved(true)}return <div><button type="button" onClick={save} disabled={saved}>{saved?"Saved to My TOTO History":"Save this research"}</button> <Link href="/toto/history">View my history →</Link></div>}
+function grade(item:SavedTotoBet,draw:PublishedTotoDraw|null){if(!draw||item.asOf>=draw.drawDate)return null;const hits=item.numbers.filter(n=>draw.main.includes(n)).length,add=draw.additional!==null&&item.numbers.includes(draw.additional);return{hits,add,label:hits>=4?`${hits} main${add?" + Additional":""}`:hits>=2?`${hits} main matched${add?" + Additional":""}`:`${hits} main matched${add?" + Additional":""}`}}
+export function TotoSavedHistory({latestDraw}:{latestDraw:PublishedTotoDraw|null}){const[items,setItems]=useState<SavedTotoBet[]>([]);useEffect(()=>setItems(readSaved()),[]);function update(id:string,patch:Partial<SavedTotoBet>){const next=items.map(i=>i.id===id?{...i,...patch}:i);persist(next);setItems(next)}function remove(id:string){const next=items.filter(i=>i.id!==id);persist(next);setItems(next)}const summary=useMemo(()=>{const placed=items.filter(i=>i.placed),graded=placed.map(i=>({i,g:grade(i,latestDraw)})).filter(x=>x.g);const wins=graded.filter(x=>(x.g?.hits??0)>=2).length;let dry=0;for(const x of graded){if((x.g?.hits??0)>=2)break;dry++}return{saved:items.length,placed:placed.length,graded:graded.length,wins,dry,deployed:placed.reduce((s,i)=>s+i.suggestedDeployment,0)}},[items,latestDraw]);if(!items.length)return <p className="state">No saved TOTO research yet. Analyse a bet and save it to start building your personal record.</p>;return <><section className="ranking-method"><span className="eyebrow">Personal scoreboard</span><h2>{summary.graded} graded · {summary.wins} with 2+ main matches</h2><p>Research saved: {summary.saved} · Marked placed: {summary.placed} · Recorded deployment: S${summary.deployed}</p>{summary.dry>=5&&<p><strong>Budget Guard:</strong> {summary.dry} graded placed entries without 2+ main matches. Consider taking a break rather than increasing stake.</p>}{latestDraw&&<p>Latest published draw {latestDraw.drawNo} · {latestDraw.drawDate}: <strong>{latestDraw.main.map(n=>String(n).padStart(2,"0")).join(" · ")}</strong>{latestDraw.additional!==null?` + Additional ${String(latestDraw.additional).padStart(2,"0")}`:""}</p>}</section><div className="recent-grid">{items.map(item=>{const g=grade(item,latestDraw);return <article className="recent-card" key={item.id}><div><h3>{item.mode.toUpperCase()} · {item.researchScore}/100</h3><p>Saved {new Date(item.savedAt).toLocaleString("en-SG")}</p></div><p><strong>{item.numbers.map(n=>String(n).padStart(2,"0")).join(" · ")}</strong></p><p>Budget S${item.budget} · Suggested S${item.suggestedDeployment} · Keep S${item.uncommitted}</p><p>{item.evidence} · data through {item.asOf}</p><label><input type="checkbox" checked={!!item.placed} onChange={e=>update(item.id,{placed:e.target.checked})}/> I actually placed this bet</label>{g?<p><strong>Latest result check: {g.label}</strong><br/>{item.placed?"Included in your personal scoreboard.":"Research-only: not counted financially unless you confirm it was placed."}</p>:<p>Waiting for a newer published draw before grading.</p>}<button type="button" onClick={()=>remove(item.id)}>Remove</button></article>})}</div></>}
