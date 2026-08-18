@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { analyseTotoNumbers, type TotoResearchMode } from "@/lib/toto-analysis";
 
 export const metadata: Metadata = {
   title: "Analyse My TOTO Bet | Lottery Intel",
   description: "Enter intended TOTO numbers, choose Match 2/3/4 or System research, and get a transparent historical research assessment.",
 };
-
-type Props = { searchParams: Promise<{ mode?: string; numbers?: string; budget?: string }> };
 
 const modes = [
   { value: "match2", label: "Match 2", note: "Pair relationship research" },
@@ -16,19 +15,23 @@ const modes = [
   { value: "system", label: "System", note: "Pool and cost comparison" },
 ] as const;
 
+type Props = { searchParams: Promise<{ mode?: string; numbers?: string; budget?: string }> };
+
 export default async function TotoAnalysePage({ searchParams }: Props) {
   const params = await searchParams;
-  const selected = modes.some((m) => m.value === params.mode) ? params.mode! : "match3";
+  const selected = (modes.some((m) => m.value === params.mode) ? params.mode : "match3") as TotoResearchMode;
   const budget = Math.max(1, Math.min(10000, Number(params.budget ?? 50) || 50));
   const raw = (params.numbers ?? "").split(/[\s,]+/).filter(Boolean);
   const numbers = [...new Set(raw.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= 49))].slice(0, 12);
-  const hasInput = numbers.length > 0;
+  const required = selected === "match2" ? 2 : selected === "match3" ? 3 : selected === "match4" ? 4 : 6;
+  const enough = numbers.length >= required;
+  const analysis = enough ? await analyseTotoNumbers(numbers, selected, budget) : null;
 
   return <main className="container page-shell">
     <nav className="number-nav"><Link href="/">Home</Link><span>/</span><Link href="/toto">TOTO</Link><span>/ Analyse My Bet</span></nav>
     <span className="eyebrow">TOTO Intelligence</span>
     <h1>Analyse my TOTO bet</h1>
-    <p className="section-copy">Already have numbers in mind? Enter them before the draw. Lottery Intel will score their historical relationships, explain the strengths and weaknesses and compare them with research-based alternatives. The score is not a probability of winning.</p>
+    <p className="section-copy">Enter the numbers you are thinking of using. Lottery Intel compares their historical number and relationship behaviour, explains the score and helps you decide how much of your maximum budget to deploy. The Research Score is not a probability of winning.</p>
 
     <form className="lucky-form" method="get">
       <label><span>Your intended / favourite numbers</span><input name="numbers" type="text" placeholder="e.g. 3, 10, 18, 27, 32, 41" defaultValue={numbers.join(", ")} /></label>
@@ -37,36 +40,28 @@ export default async function TotoAnalysePage({ searchParams }: Props) {
       <button type="submit">Research my bet</button>
     </form>
 
-    {!hasInput ? <section className="ranking-method"><h2>What happens next?</h2><p>Enter at least two numbers. V1 will score individual number history, identify the strongest pair/triple/quad relationships inside your set, highlight weaker relationships and suggest AI alternatives while keeping your favourites where possible.</p></section> : <AnalysisPreview numbers={numbers} mode={selected} budget={budget} />}
+    {!numbers.length ? <section className="ranking-method"><h2>Already have numbers in mind?</h2><p>Enter at least {required} unique numbers. The analyser will score the relationships inside your set, identify stronger and weaker combinations and explain the historical evidence behind them.</p></section> : !enough ? <p className="state state-error">Add at least {required} unique numbers for {modes.find((m) => m.value === selected)?.label} research.</p> : analysis?.error || !analysis?.data ? <p className="state state-error">{analysis?.error ?? "Analysis is temporarily unavailable."}</p> : <ResultCard data={analysis.data} numbers={numbers} budget={budget} />}
 
     <aside className="rankings-warning"><strong>Research score ≠ chance of winning.</strong> TOTO draws remain random. Historical relationships can help compare and structure intended selections, but they do not guarantee future results. Lottery Intel treats your budget as a maximum and may recommend leaving part of it unused.</aside>
   </main>;
 }
 
-function AnalysisPreview({ numbers, mode, budget }: { numbers: number[]; mode: string; budget: number }) {
-  const required = mode === "match2" ? 2 : mode === "match3" ? 3 : mode === "match4" ? 4 : 6;
-  const enough = numbers.length >= required;
-  const relationships = combinationCount(numbers.length, required);
+function ResultCard({ data, numbers, budget }: { data: NonNullable<Awaited<ReturnType<typeof analyseTotoNumbers>>["data"]>; numbers: number[]; budget: number }) {
+  const label = modes.find((m) => m.value === data.mode)?.label;
+  const fmt = (ns: number[]) => ns.map((n) => String(n).padStart(2, "0")).join(" · ");
   return <>
     <section className="ranking-method">
-      <span className="eyebrow">Your research setup</span>
-      <h2>{numbers.map((n) => String(n).padStart(2, "0")).join(" · ")}</h2>
-      <p><strong>Target:</strong> {modes.find((m) => m.value === mode)?.label} · <strong>Maximum budget:</strong> S${budget}</p>
-      <p><strong>{relationships.toLocaleString("en-SG")}</strong> {required}-number relationship{relationships === 1 ? "" : "s"} exist inside your entered set.</p>
-      {!enough && <p className="state state-error">Add at least {required} unique numbers for this research mode.</p>}
+      <span className="eyebrow">Your research result · data through {data.asOf}</span>
+      <h2>Research Score: {data.researchScore}/100</h2>
+      <p><strong>{data.evidence}</strong> · {label} · Maximum budget S${budget}</p>
+      <p>{data.explanation}</p>
+      <p><strong>AI budget view:</strong> deploy up to S${data.suggestedDeployment}; keep S${Math.max(0, budget - data.suggestedDeployment)} uncommitted unless you deliberately choose more exposure.</p>
     </section>
 
-    {enough && <section className="ranking-method">
-      <h2>Scoring engine connection is next</h2>
-      <p>The page is now ready for the server-side engine from our backtesting research: Match 2 uses exact pair relationships; Match 3 uses the 180/210-day consensus model; Match 4 uses high-variance quadruple research; Standard/System compares number pools and cost efficiency.</p>
-      <p>The completed result card will show a 0–100 Research Score, strongest and weakest relationships, stability evidence, suggested replacements, Favourite + AI alternatives and recommended budget deployment.</p>
-    </section>}
-  </>;
-}
+    <section className="ranking-method"><h2>Your numbers</h2><p>{fmt(numbers)}</p><div className="stats-preview">{data.numberScores.map((n) => <div key={n.number}><strong>{String(n.number).padStart(2, "0")}</strong><span>Number score {n.score}/100</span><span>{n.appearances90} appearances / 90d</span><small>{n.appearances365} appearances / 365d</small></div>)}</div></section>
 
-function combinationCount(n: number, r: number) {
-  if (n < r) return 0;
-  let out = 1;
-  for (let i = 1; i <= r; i++) out = out * (n - r + i) / i;
-  return Math.round(out);
+    {!!data.strongest.length && <section className="ranking-method"><h2>Strongest relationships in your bet</h2>{data.strongest.map((r, i) => <p key={r.numbers.join("-")}><strong>#{i + 1} {fmt(r.numbers)} — {r.score}/100</strong><br />Historical relationship rank #{r.rankPrimary}{r.rankSecondary ? ` / consensus rank #${r.rankSecondary}` : ""}; observed {r.countPrimary}{r.countSecondary !== undefined ? ` / ${r.countSecondary}` : ""} times in the model windows.</p>)}</section>}
+
+    {!!data.weakest.length && <section className="ranking-method"><h2>Relationships to review</h2>{data.weakest.map((r) => <p key={r.numbers.join("-")}><strong>{fmt(r.numbers)} — {r.score}/100</strong><br />This relationship is weaker relative to the current historical comparison set. Consider comparing it with an AI alternative before finalising your ticket.</p>)}</section>}
+  </>;
 }
