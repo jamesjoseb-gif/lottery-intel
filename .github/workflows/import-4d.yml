@@ -5,18 +5,17 @@ on:
     inputs:
       from:
         description: "Inclusive start date (YYYY-MM-DD)"
-        required: true
-        default: "2008-01-01"
+        required: false
         type: string
       to:
         description: "Inclusive end date (YYYY-MM-DD)"
-        required: true
-        default: "2024-07-26"
-        type: string
-      resume_year:
-        description: "Optional year to resume from (YYYY); earlier years are skipped"
         required: false
         type: string
+  schedule:
+    # 20:30 and 22:30 Singapore time on normal 4D draw days.
+    # The second run is a safe retry because imports are idempotent.
+    - cron: "30 12 * * 3,6,0"
+    - cron: "30 14 * * 3,6,0"
 
 permissions:
   contents: read
@@ -28,11 +27,8 @@ concurrency:
 jobs:
   import-4d:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 30
     env:
-      BACKFILL_FROM: ${{ inputs.from }}
-      BACKFILL_TO: ${{ inputs.to }}
-      RESUME_YEAR: ${{ inputs.resume_year }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
@@ -51,5 +47,20 @@ jobs:
       - name: Test importer and integrity rules
         run: npm test
 
-      - name: Import and verify yearly batches
-        run: npm run backfill:4d
+      - name: Resolve import date range
+        shell: bash
+        run: |
+          SGT_TODAY=$(TZ=Asia/Singapore date +%F)
+          FROM="${{ inputs.from }}"
+          TO="${{ inputs.to }}"
+          echo "IMPORT_FROM=${FROM:-$SGT_TODAY}" >> "$GITHUB_ENV"
+          echo "IMPORT_TO=${TO:-$SGT_TODAY}" >> "$GITHUB_ENV"
+
+      - name: Verify official live sources
+        run: npm run verify:live
+
+      - name: Import 4D results
+        run: npm run import:4d
+
+      - name: Verify 4D database integrity
+        run: npm run verify:4d
