@@ -11,7 +11,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/4d/strategy", priority: 0.9, changeFrequency: "weekly" as const },
     { path: "/toto", priority: 0.95, changeFrequency: "daily" as const },
     { path: "/toto/analyse", priority: 0.9, changeFrequency: "weekly" as const },
-    { path: "/toto/history", priority: 0.5, changeFrequency: "weekly" as const },
     { path: "/singapore-sweep", priority: 0.8, changeFrequency: "monthly" as const },
   ];
 
