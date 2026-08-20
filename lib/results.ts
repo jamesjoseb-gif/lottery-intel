@@ -78,12 +78,31 @@ export function getLatestToto() { return getLatestRows<TotoRow>("toto"); }
 export function getLatestSweep() { return getLatestRows<SweepRow>("sweep"); }
 export type NumberHistory = { appearances: FourDRow[]; rows: FourDRow[]; count: number; page: number; pageSize: number; archiveCounts: { total: number; last12Months: number; last24Months: number } };
 
-/** Fetch the published 4D archive fields needed for digit-position analysis. */
+/** Fetch every published 4D archive row needed for digit-position analysis.
+ * Supabase/PostgREST can cap a response at 1,000 rows even when a larger
+ * limit is requested, so page explicitly instead of silently analysing only
+ * the newest slice of the archive.
+ */
 export async function getFourDDigitPositionRows(): Promise<QueryResult<Array<{ winning_number: string; draw_date: string }>>> {
-  return safely<Array<{ winning_number: string; draw_date: string }>>(
-    () => publicView("published_fourd_results").select("winning_number,draw_date").order("draw_date", { ascending: false }).limit(10000),
-    [],
-  );
+  try {
+    const pageSize = 1000;
+    const rows: Array<{ winning_number: string; draw_date: string }> = [];
+    for (let from = 0; ; from += pageSize) {
+      const result = await publicView("published_fourd_results")
+        .select("winning_number,draw_date")
+        .order("draw_date", { ascending: false })
+        .order("draw_no", { ascending: false })
+        .order("position", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (result.error) return { data: null, error: result.error.message };
+      const page = (result.data ?? []) as Array<{ winning_number: string; draw_date: string }>;
+      rows.push(...page);
+      if (page.length < pageSize) break;
+    }
+    return { data: rows, error: null };
+  } catch (error) {
+    return { data: null, error: error instanceof Error ? error.message : "Unable to load digit-position archive." };
+  }
 }
 
 /** Fetch an exact number's complete history for statistics and a filtered page for display. */
