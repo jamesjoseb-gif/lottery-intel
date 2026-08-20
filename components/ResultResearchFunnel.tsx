@@ -8,8 +8,8 @@ export function FourDQuickCheck() {
   const [number, setNumber] = useState("");
   function submit(e: FormEvent) {
     e.preventDefault();
-    const clean = number.replace(/\D/g, "").slice(0, 4).padStart(4, "0");
-    if (clean.length !== 4) return;
+    const clean = number.replace(/\D/g, "");
+    if (!/^\d{4}$/.test(clean)) return;
     window.gtag?.("event", "check_4d_number", { number: clean, source: "4d_results" });
     router.push(`/4d/number/${clean}`);
   }
@@ -18,7 +18,7 @@ export function FourDQuickCheck() {
     <h2 id="check-4d-number">Did your 4D number appear?</h2>
     <p>Enter any 4D number to check its historical appearances, then continue into Lottery Intel research for the next draw.</p>
     <form className="lucky-form" onSubmit={submit}>
-      <label><span>My 4D number</span><input inputMode="numeric" pattern="[0-9]{1,4}" maxLength={4} placeholder="e.g. 6149" value={number} onChange={e=>setNumber(e.target.value)} /></label>
+      <label><span>My 4D number</span><input inputMode="numeric" pattern="[0-9]{4}" maxLength={4} placeholder="e.g. 6149" value={number} onChange={e=>setNumber(e.target.value.replace(/\D/g, "").slice(0, 4))} /></label>
       <button type="submit">Check number history →</button>
     </form>
   </section>;
